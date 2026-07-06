@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "semantic-vault-mcp"
+version = "0.1.0"
+description = "Local RAG semantic search for Obsidian vaults — Ollama + LanceDB + MCP"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "brodewa"},
+]
+dependencies = [
+    "lancedb>=0.10.0",
+    "pyarrow>=14.0.0",
+    "requests>=2.31.0",
+    "watchdog>=4.0.0",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.scripts]
+vault-index = "indexer.vault_indexer:main"
+vault-mcp = "mcp_server.server:main"
+
+[tool.setuptools.packages.find]
+include = ["indexer*", "mcp_server*"]

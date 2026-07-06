@@ -1,0 +1,4 @@
+lancedb>=0.10.0
+pyarrow>=14.0.0
+requests>=2.31.0
+watchdog>=4.0.0
