@@ -41,7 +41,7 @@ User query → Ollama embed → LanceDB vector search → relevant chunks → LL
 
 ```bash
 # Clone
-git clone https://github.com/YOUR_USERNAME/semantic-vault-mcp.git
+git clone https://github.com/brodewa369/roowet-semantic-vault-search.git
 cd semantic-vault-mcp
 
 # Windows
