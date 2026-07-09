@@ -152,9 +152,11 @@ Restart Claude Desktop. You now have `search_vault()`, `read_vault_file()`, `vau
 ```
 semantic-vault-mcp/
 ├── README.md               # Quick start + MCP config
-├── CLAUDE.md               # Agent guidance (Claude Code/Desktop)
-├── AGENTS.md               # Agent guidance (Hermes integration)
-├── SOUL.md                 # Agent identity template (RAG integration)
+├── CLAUDE.md               # Agent identity template — FUNGSI: Claude / Claude Code
+├── AGENTS.md               # Technical MCP context + Hermes integration
+├── SOUL.md                 # Agent identity template — FUNGSI: agent non-Claude (Hermes/Codex/OpenClaw/OpenCode)
+├── skills/                 # Agent skills (jalankan via /nama-skill)
+│   └── scanthissession/    # Scan session → tulis ke vault (error/decision/correction/dll)
 ├── LICENSE                 # MIT
 ├── pyproject.toml          # pip install .
 ├── requirements.txt

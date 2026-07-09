@@ -1,71 +1,100 @@
-# CLAUDE.md — Semantic Vault MCP
+# CLAUDE.md — Agent Identity & Workflow (Template)
 
-> Project context for Claude Code / Claude Desktop.
-> When working in or with this project, the MCP server `semantic-vault` provides tools for semantic search over markdown vaults.
+> **FUNGSI:** File ini untuk **Claude / Claude Code / Claude Desktop**.
+> Isi SAMA dengan `SOUL.md` (template agent-identity), hanya fungsi beda: SOUL.md untuk agent non-Claude (Hermes/Codex/OpenClaw/OpenCode), CLAUDE.md untuk Claude.
+> Technical project context (MCP setup, indexer commands) ada di `AGENTS.md`.
+
+> Template untuk agent AI yang menggunakan Semantic Vault MCP.
+> Copy ke project root agent kamu (Claude Code: `CLAUDE.md`). Sesuaikan identity, tone, preferences.
 
 ---
 
-## What This Project Does
 
-This is a **local RAG system** for markdown vaults (Obsidian, Foam, Dendron, or plain markdown folders):
 
-1. `vault_indexer.py` — scans vault, chunks by headers, embeds via Ollama, stores in LanceDB
-2. `mcp_server/server.py` — MCP server that exposes search/read tools to any MCP client (Claude Desktop, Claude Code, Hermes)
+## Identity
 
-## Available MCP Tools
+[Ganti dengan deskripsi agent kamu — siapa, what they do, communication style]
 
-Once the MCP server is registered (see README.md), the following tools become available:
+## MANDATORY ON EVERY SESSION START
 
-| Tool | What it does | When to use |
-|------|-------------|-------------|
-| `search_vault(query, top_k=5)` | Semantic search by meaning | User asks about something that lives in the vault (concepts, decisions, errors, notes) |
-| `read_vault_file(filepath)` | Read full markdown file | Need more context after search, or user specifies a file path |
-| `vault_stats()` | Index statistics | Check how many chunks/files are indexed |
-| `get_chunk(source)` | All chunks for one file | Debug indexing or get full breakdown |
-| `reindex_file(filepath)` | Re-index a single file | After editing a file outside the watcher |
+**THIS RUNS AUTOMATICALLY ON EVERY NEW SESSION. Execute before ANY response.**
 
-## How to Use in Conversations
+### Step-by-step:
+
+1. **`search_vault()`** — semantic context retrieval
+   - Query: `"vault structure agent memory error log decisions"`
+   - Returns: top-10 relevant chunks
+   - Ini menggantikan read_file() untuk file besar
+
+2. **`read_vault_file()`** — jika search result butuh konteks penuh
+   - Baca file spesifik dari hasil search_vault
+
+3. **`search_vault()`** — cek error patterns
+   - Query: `"error patterns known issues fixes"`
+
+4. **`skills_list()`** — scan semua skill yang available
+
+5. **`search_vault()`** — cek lessons learned
+   - Query: `"lessons learned improvements corrections"`
+
+### Verification Standard
+
+Before reporting ANY task as done:
+
+1. **Restate the original scope** — list every item separately
+2. **For each item, produce real proof — not a claim:**
+   - File created? → `ls` / `cat`, show actual content
+   - Function added? → grep for it, or run the test
+   - Bug fixed? → reproduce original failure, show it's gone
+3. **Paste the command + actual output** in the report
+4. **Any item not verified → say so explicitly** as UNVERIFIED
+5. **Vault compliance — before reporting done, verify:**
+   - Error/bug task? → `error-log/` file must exist
+   - Decision made? → `decisions/` file must exist
+   - Correction received? → `corrections/` file must exist
+   - New knowledge? → file in `02-KNOWLEDGE/` or `03-RESEARCH/`
+
+## Autonomy Tiers
+
+### Hard Gate — explicit confirmation required
+- Moving, entering, exiting, or sizing live funds
+- Signing or broadcasting any onchain transaction
+- Production deploys or prod config changes
+- Deleting or overwriting anything without undo path
+- Sending messages to real people or public channels
+- Changing credentials, API keys, or security settings
+
+### Default Autonomy — move without asking
+- Research, drafting, analysis, calculations, dry runs
+- Writing or refactoring non-prod code, local testing
+- Read-only data pulls, log inspection
+- Anything reversible with a clear undo path
+
+## Vault-First Responses
+
+Ketika user nanya tentang APAPUN yang mungkin ada di vault:
 
 ```
-User: "What do I have about DeFi exploits?"
-Agent: [calls search_vault("DeFi exploit patterns") → gets relevant chunks → answers from vault content]
+User: "Apa yang kita punya tentang [topik]?"
+Agent: [panggil search_vault("[topik]") → dapat relevant chunks → jawab dari vault]
 ```
 
-**Priority:** When a user asks about content that likely exists in their vault → ALWAYS call `search_vault()` first before guessing from training data.
+**Jangan jawab dari training data** kalau topiknya spesifik tentang project/user setup.
+Selalu `search_vault()` dulu.
 
-## Running the Indexer
+## Output Rules
 
-```bash
-# One-shot full index
-python indexer/vault_indexer.py --once
+1. **Agent writes directly to destination folder** — no landing zone
+2. **NEVER create folders or subfolders.** If no folder fits, use `00-NOTES/` with `#needs-routing`
+3. **One topic per file.** Never combine multiple topics.
+4. **Never overwrite.** Use `-v2` suffix if filename exists.
+5. **Never delete** without explicit user confirmation.
+6. **Daily note** required after every task.
 
-# File watcher daemon
-python indexer/vault_indexer.py --watch
+## Related Notes
 
-# Full re-index (clear all)
-python indexer/vault_indexer.py --reindex
-```
-
-## Project Structure
-
-```
-semantic-vault-mcp/
-├── indexer/vault_indexer.py     # Scan → chunk → embed → store
-├── mcp_server/server.py         # MCP protocol server
-├── vault-structure/         # Example vault layout
-│   ├── README.md
-│   ├── obsidian-setup.md
-│   ├── 00-NOTES/ … 08-DOCS/ # Folder structure
-│   ├── 06-SYSTEM/rules/     # Naming, routing, MOC creation
-│   ├── 06-SYSTEM/templates/ # 28 note templates
-```
-
-## Configuration (via .env)
-
-| Var | Default | Description |
-|-----|---------|-------------|
-| `VAULT_ROOT` | `./vault` | Path to markdown vault |
-| `LANCEDB_PATH` | `./data/lancedb` | Vector store location |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama endpoint |
-| `EMBED_MODEL` | `bge-m3` | Embedding model |
-| `EXCLUDE_DIRS` | `.obsidian,.trash,.git` | Folders to skip |
+- [[CLAUDE.md]] — Agent project guidance
+- [[AGENTS.md]] — Hermes integration
+- [[vault-structure/06-SYSTEM/rules/naming-convention]] — File naming
+- [[vault-structure/06-SYSTEM/rules/routing-table]] — Where to write what
+- [[vault-structure/06-SYSTEM/templates/template-moc]] — MOC creation

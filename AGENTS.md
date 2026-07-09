@@ -108,3 +108,44 @@ no_agent: true
 | Debug index | `get_chunk(source)` |
 | Reindex 1 file | `reindex_file(path)` |
 | Full text search / grep | `grep` / `search_files` (fallback) |
+
+---
+
+## Technical MCP Context (Project Setup)
+
+> Dipindah dari `CLAUDE.md` — agar `CLAUDE.md`/`SOUL.md` fokus ke agent-identity template.
+> Agent-identity rules ada di `SOUL.md` (non-Claude) dan `CLAUDE.md` (Claude).
+
+### What This Project Does
+
+Local RAG system untuk markdown vault (Obsidian/Foam/Dendron/plain md):
+1. `vault_indexer.py` — scan vault, chunk by headers, embed via Ollama, store di LanceDB
+2. `mcp_server/server.py` — MCP server exposing search/read tools ke MCP client (Claude Desktop, Claude Code, Hermes)
+
+### Available MCP Tools
+
+| Tool | What it does | When to use |
+|------|-------------|-------------|
+| `search_vault(query, top_k=5)` | Semantic search by meaning | User asks about vault content |
+| `read_vault_file(filepath)` | Read full markdown file | Need full context after search |
+| `vault_stats()` | Index statistics | Check chunks/files indexed |
+| `get_chunk(source)` | All chunks for one file | Debug indexing |
+| `reindex_file(filepath)` | Re-index single file | After editing outside watcher |
+
+### Running the Indexer
+
+```bash
+python indexer/vault_indexer.py --once      # one-shot full index
+python indexer/vault_indexer.py --watch      # file watcher daemon
+python indexer/vault_indexer.py --reindex    # full re-index (clear all)
+```
+
+### Configuration (.env)
+
+| Var | Default | Description |
+|-----|---------|-------------|
+| `VAULT_ROOT` | `./vault` | Path to markdown vault |
+| `LANCEDB_PATH` | `./data/lancedb` | Vector store location |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama endpoint |
+| `EMBED_MODEL` | `bge-m3` | Embedding model |
+| `EXCLUDE_DIRS` | `.obsidian,.trash,.git` | Folders to skip |

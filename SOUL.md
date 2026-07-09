@@ -1,10 +1,15 @@
 # SOUL.md — Agent Identity & Workflow (Template)
 
+> **FUNGSI:** File ini untuk agent di LUAR Claude Code — misal **Hermes, Codex, OpenClaw, OpenCode**, dll.
+> Copy ke root project agent kamu (Hermes: `SOUL.md`). Sesuaikan identity, tone, preferences.
+> Untuk Claude / Claude Code, pakai `CLAUDE.md` (isi SAMA, fungsi beda).
+
 > Template untuk agent AI yang menggunakan Semantic Vault MCP.
-> Copy ke project root agent kamu (Hermes: `SOUL.md`, Claude: `CLAUDE.md`).
-> Sesuaikan identity, tone, dan preferences dengan kebutuhan kamu.
+> Copy ke project root agent kamu. Sesuaikan identity, tone, dan preferences dengan kebutuhan kamu.
 
 ---
+
+
 
 ## Identity
 
