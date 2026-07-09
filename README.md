@@ -136,7 +136,7 @@ graph TB
     TOOLS --> QEMBED --> Ollama
     QEMBED --> LANCE
     TOOLS -->|read_vault_file| Vault
-    MCP -->|search results (chunks)| Agent
+    MCP -->|search results| Agent
 ```
 
 ## Full Pipeline
