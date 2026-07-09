@@ -1,6 +1,6 @@
 ---
 name: scanthissession
-description: Scan current or active session transcript, detect vault-relevant items (topic, blocker, correction, decision, error/bug, knowledge-gap, lesson, pattern, skill-usage, entity, person, topic), then WRITE them to the correct vault folder per rules. Use after a work session, when user says scan session, or before ending a long task. Trigger words scan session, log session ini, scanthisession.
+description: Scan current or active session transcript, detect vault-relevant items (topic, blocker, correction, decision, error/bug, knowledge-gap, lesson, pattern, skill-usage, entity, person, topic), then WRITE them to the correct vault folder per rules. Use after a work session, when user says scan session, or before ending a long task. Trigger words scan session, log session ini, scanthisession. NOTE: ganti `<VAULT_ROOT>` dan `<HERMES_SCRIPTS>` dengan path environment lo sebelum pakai.
 ---
 
 # /scanthissession — Session Scanner & Vault Writer
@@ -45,11 +45,11 @@ Untuk tiap item di bawah, tanya: ADA DI TRANSCRIPT? → kalau YA, catat ke list.
 
 ### Step 3 — Write files
 Untuk tiap item di list (Step 2):
-1. `write_file(path, content)` — path absolut `C:/Users/GGID/wiki/...`
+1. `write_file(path, content)` — path relatif ke vault: `<VAULT_ROOT>/01-AGENT-MEMORY/...` (ganti `<VAULT_ROOT>` dengan path vault lo, misal `C:/Users/you/vault` atau `~/vault`)
 2. Frontmatter: `type`, `status: active`, `date: YYYY-MM-DD`, `tags: [...]`
 3. Body: sesuai format kolom Format file di tabel.
 4. `## Related` minimal 1 wikilink.
-5. Auto-tag: `python3 AppData/Local/hermes/scripts/auto-tag.py <file> --apply` (ada di Windows? pakai `python` kalau `python3` gak ada).
+5. Auto-tag: `<HERMES_SCRIPTS>/auto-tag.py <file> --apply` (ganti `<HERMES_SCRIPTS>` dengan path script Hermes lo, misal `AppData/Local/hermes/scripts` di Windows atau `~/.hermes/scripts` di Linux/Mac. Pakai `python` atau `python3` sesuai env).
 
 ### Step 4 — Daily-note + Session-log (WAJIB, pakai decision rule)
 **Decision rule (bedain keduanya):**
