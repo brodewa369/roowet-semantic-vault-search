@@ -219,33 +219,33 @@ A: Yes. Indexer tracks file content hashes (MD5). Re-run `--once` to only index 
 **Q: Can I use this without Obsidian?**
 A: Yes. Any folder with `.md` files works. Set `VAULT_ROOT` to any markdown directory.
 
-## ⚠️ Path Setup (WAJIB sebelum pakai)
+## ⚠️ Path Setup (required before use)
 
-File di repo pakai **placeholder generic** — gak ada hardcoded path PC. Ganti sebelum jalanin:
+Files in this repo use **generic placeholders** — no hardcoded PC paths. Replace them before running:
 
-| Placeholder | Artinya | Contoh (Windows) | Contoh (Linux/Mac) |
+| Placeholder | Meaning | Example (Windows) | Example (Linux/Mac) |
 |---|---|---|---|
-| `<VAULT_ROOT>` | Path vault markdown lo | `C:/Users/you/vault` | `~/vault` |
-| `<HERMES_SCRIPTS>` | Path script Hermes | `AppData/Local/hermes/scripts` | `~/.hermes/scripts` |
+| `<VAULT_ROOT>` | Path to your markdown vault | `C:/Users/you/vault` | `~/vault` |
+| `<HERMES_SCRIPTS>` | Path to Hermes scripts | `AppData/Local/hermes/scripts` | `~/.hermes/scripts` |
 
-Di `skills/scanthissession/SKILL.md`: ganti `<VAULT_ROOT>` (line ~48) dan `<HERMES_SCRIPTS>` (line ~52) ke environment lo.
-`SOUL.md` / `CLAUDE.md` template generic — set `VAULT_ROOT` di `.env` (lihat `AGENTS.md`) biar `search_vault()` jalan.
+In `skills/scanthissession/SKILL.md`: replace `<VAULT_ROOT>` (line ~48) and `<HERMES_SCRIPTS>` (line ~52) with your environment paths.
+`SOUL.md` / `CLAUDE.md` are generic templates — set `VAULT_ROOT` in `.env` (see `AGENTS.md`) so `search_vault()` works.
 
-**Fungsi beda:** `SOUL.md` = agent non-Claude (Hermes/Codex/OpenClaw/OpenCode). `CLAUDE.md` = Claude/Claude Code. Isi SAMA.
+**Different purpose:** `SOUL.md` = non-Claude agents (Hermes/Codex/OpenClaw/OpenCode). `CLAUDE.md` = Claude/Claude Code. Content is the SAME.
 
 ## Skills
 
 ### `/scanthissession` — Session Scanner & Vault Writer
 
-Agent scan session transcript, deteksi item vault (error, keputusan, koreksi, lesson, dll), lalu **TULIS otomatis ke folder vault yang benar**. Solusi biar agent gak lupa log — skill MEMAKSA scan + write, bukan instruction pasif.
+The agent scans the session transcript, detects vault-relevant items (errors, decisions, corrections, lessons, etc.), then **automatically writes them to the correct vault folder**. This solves agents "forgetting" to log — the skill FORCES scan + write, instead of relying on passive instructions.
 
 ```bash
 /scanthissession
-# atau bilang: "scan session", "log session ini"
+# or say: "scan session", "log session ini"
 ```
 
-**Kapan:** selesai session panjang (>10 tool calls), sebelum tutup session.
-**Output:** file ke `<VAULT_ROOT>/01-AGENT-MEMORY/...` + daily-note di-update.
+**When:** after a long session (>10 tool calls), before ending a session.
+**Output:** files written to `<VAULT_ROOT>/01-AGENT-MEMORY/...` + daily-note updated.
 
 ## License
 
