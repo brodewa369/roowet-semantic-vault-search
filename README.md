@@ -155,8 +155,8 @@ semantic-vault-mcp/
 ├── CLAUDE.md               # Agent identity template — FUNGSI: Claude / Claude Code
 ├── AGENTS.md               # Technical MCP context + Hermes integration
 ├── SOUL.md                 # Agent identity template — FUNGSI: agent non-Claude (Hermes/Codex/OpenClaw/OpenCode)
-├── skills/                 # Agent skills (jalankan via /nama-skill)
-│   └── scanthissession/    # Scan session → tulis ke vault (error/decision/correction/dll)
+├── skills/                 # Agent skills
+│   └── scanthissession/    # /scanthissession — scan session → tulis ke vault
 ├── LICENSE                 # MIT
 ├── pyproject.toml          # pip install .
 ├── requirements.txt
@@ -218,6 +218,34 @@ A: Yes. Indexer tracks file content hashes (MD5). Re-run `--once` to only index 
 
 **Q: Can I use this without Obsidian?**
 A: Yes. Any folder with `.md` files works. Set `VAULT_ROOT` to any markdown directory.
+
+## ⚠️ Path Setup (WAJIB sebelum pakai)
+
+File di repo pakai **placeholder generic** — gak ada hardcoded path PC. Ganti sebelum jalanin:
+
+| Placeholder | Artinya | Contoh (Windows) | Contoh (Linux/Mac) |
+|---|---|---|---|
+| `<VAULT_ROOT>` | Path vault markdown lo | `C:/Users/you/vault` | `~/vault` |
+| `<HERMES_SCRIPTS>` | Path script Hermes | `AppData/Local/hermes/scripts` | `~/.hermes/scripts` |
+
+Di `skills/scanthissession/SKILL.md`: ganti `<VAULT_ROOT>` (line ~48) dan `<HERMES_SCRIPTS>` (line ~52) ke environment lo.
+`SOUL.md` / `CLAUDE.md` template generic — set `VAULT_ROOT` di `.env` (lihat `AGENTS.md`) biar `search_vault()` jalan.
+
+**Fungsi beda:** `SOUL.md` = agent non-Claude (Hermes/Codex/OpenClaw/OpenCode). `CLAUDE.md` = Claude/Claude Code. Isi SAMA.
+
+## Skills
+
+### `/scanthissession` — Session Scanner & Vault Writer
+
+Agent scan session transcript, deteksi item vault (error, keputusan, koreksi, lesson, dll), lalu **TULIS otomatis ke folder vault yang benar**. Solusi biar agent gak lupa log — skill MEMAKSA scan + write, bukan instruction pasif.
+
+```bash
+/scanthissession
+# atau bilang: "scan session", "log session ini"
+```
+
+**Kapan:** selesai session panjang (>10 tool calls), sebelum tutup session.
+**Output:** file ke `<VAULT_ROOT>/01-AGENT-MEMORY/...` + daily-note di-update.
 
 ## License
 
