@@ -98,7 +98,7 @@ graph TB
 
     subgraph Indexer["⚙️ vault_indexer.py"]
         SCAN["Scan .md (rglob)"]
-        CHUNK["Chunk by ## headers<br/>(CHUNK_SIZE=512, OVERLAP=64)"]
+        CHUNK["Chunk by ## headers<br/>(CHUNK_SIZE=512 words, OVERLAP=64)<br/>04-LOGS/ → per-entry (## HH:MM) chunks"]
         HASH["MD5 hash store<br/>(incremental change detect)"]
         EMBED["OllamaEmbedder.embed_batch()<br/>/api/embed — 50 chunks/call<br/>circuit breaker (5 fails → 60s pause)"]
         LOCK["Instance lock (msvcrt)<br/>+ backup before index"]
@@ -119,8 +119,9 @@ graph TB
     end
 
     subgraph Client["🤖 MCP Client (Agent)"]
-        AGENT["Claude / Hermes / Codex / OpenClaw<br/>SOUL.md (non-Claude) · CLAUDE.md (Claude)"]
+        AGENT["Claude / Hermes / Codex / OpenClaw<br/>SOUL.md (agent identity template)"]
         SKILL["/scanthissession skill<br/>(scan → write vault)"]
+        SS["session_scan.py<br/>(batched local scan variant)"]
     end
 
     Vault --> SCAN
@@ -133,6 +134,7 @@ graph TB
 
     Client -->|MCP tools/call| MCP
     AGENT --> SKILL
+    SKILL --> SS
     TOOLS --> QEMBED --> Ollama
     QEMBED --> LANCE
     TOOLS -->|read_vault_file| Vault
@@ -168,7 +170,7 @@ flowchart TD
     subgraph IDX["🔄 INDEX PIPELINE (--once / --watch / --reindex)"]
         I1["vault_indexer.py"] --> I2["Scan VAULT_ROOT *.md<br/>(excl .obsidian/.trash/.git)"]
         I2 --> I3["MD5 vs hash store<br/>(skip if unchanged)"]
-        I3 -->|changed| I4["chunk_file() by ## headers"]
+        I3 -->|changed| I4["chunk_file() by ## headers<br/>(04-LOGS/ → per-entry chunks)"]
         I4 --> I5["embed_batch(50/call)<br/>POST /api/embed → Ollama"]
         I5 --> I6["table.add(rows)<br/>chunk_id|source|text|vector[1024]|indexed_at"]
         I6 --> I7["update hash store"]
@@ -223,7 +225,6 @@ flowchart TD
 ```
 semantic-vault-mcp/
 ├── README.md               # Quick start + MCP config
-├── CLAUDE.md              # Agent identity template — PURPOSE: Claude / Claude Code
 ├── AGENTS.md               # Technical MCP context + Hermes integration
 ├── SOUL.md                # Agent identity template — PURPOSE: agent non-Claude (Hermes/Codex/OpenClaw/OpenCode)
 ├── skills/                 # Agent skills
@@ -241,6 +242,8 @@ semantic-vault-mcp/
 ├── mcp_server/
 │   ├── __init__.py
 │   └── server.py           # MCP protocol server
+├── scripts/
+│   └── session_scan.py     # Batched session → vault ingestion
 ├── vault-structure/         # Example vault layout
 │   ├── README.md           # Folder structure explained
 │   ├── obsidian-setup.md   # Recommended Obsidian plugins
@@ -301,9 +304,9 @@ Files in this repo use **generic placeholders** — no hardcoded PC paths. Repla
 | `<HERMES_SCRIPTS>` | Path to Hermes scripts | `AppData/Local/hermes/scripts` | `~/.hermes/scripts` |
 
 In `skills/scanthissession/SKILL.md`: replace `<VAULT_ROOT>` (line ~48) and `<HERMES_SCRIPTS>` (line ~52) with your environment paths.
-`SOUL.md` / `CLAUDE.md` are generic templates — set `VAULT_ROOT` in `.env` (see `AGENTS.md`) so `search_vault()` works.
+`SOUL.md` is a generic template — set `VAULT_ROOT` in `.env` (see `AGENTS.md`) so `search_vault()` works.
 
-**Different purpose:** `SOUL.md` = non-Claude agents (Hermes/Codex/OpenClaw/OpenCode). `CLAUDE.md` = Claude/Claude Code. Content is the SAME.
+**Purpose:** `SOUL.md` = non-Claude agents (Hermes/Codex/OpenClaw/OpenCode). It's a generic template — fill in your own agent identity.
 
 ## Skills
 
