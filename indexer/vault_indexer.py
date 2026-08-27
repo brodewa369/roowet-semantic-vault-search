@@ -20,6 +20,7 @@ import hashlib
 import logging
 import threading
 import msvcrt
+import re
 from pathlib import Path
 from datetime import datetime
 
@@ -223,8 +224,38 @@ class OllamaEmbedder:
 
 # ── Chunker ───────────────────────────────────────────────────────────────────
 
+def chunk_file_logs(content: str, filepath: str) -> list[dict]:
+    """04-LOGS/-only chunker: each '## HH:MM ...' (or dated section) entry is its
+    own chunk, so date-specific daily-note queries retrieve the exact entry.
+    Leading frontmatter/date-header block before the first entry stays as one chunk."""
+    chunks = []
+    if content.startswith("---"):
+        parts = content.split("---", 2)
+        if len(parts) >= 3:
+            content = parts[2]
+
+    # split on a line starting with '## ' that looks like a timestamp/date header
+    parts = re.split(r'(?=\n## (?:[0-9]{1,2}:[0-9]{2}|\d{4}-\d{2}-\d{2}))', content)
+    for i, p in enumerate(parts):
+        text = p.strip()
+        if not text:
+            continue
+        chunks.append({
+            "text": text,
+            "source": filepath,
+            "chunk_id": hashlib.md5(text.encode()).hexdigest(),
+        })
+    return chunks
+
+
 def chunk_file(content: str, filepath: str) -> list[dict]:
-    """Split markdown content into chunks by ## headers."""
+    """Split markdown content into chunks by ## headers.
+
+    04-LOGS/ uses per-entry chunking (one chunk per '## HH:MM' entry) so that
+    date-specific queries hit the exact entry instead of a merged section."""
+    if "/04-LOGS/" in filepath.replace("\\", "/"):
+        return chunk_file_logs(content, filepath)
+
     chunks = []
 
     if content.startswith("---"):
@@ -483,7 +514,7 @@ class VaultIndexer:
         self._is_indexing = False
         return total
 
-    def search(self, query: str, top_k: int = 5) -> list[dict]:
+    def search(self, query: str, top_k: int = 8) -> list[dict]:
         """Semantic search. Returns top K matching chunks."""
         vec = self.embedder.embed(query)
         if not vec:

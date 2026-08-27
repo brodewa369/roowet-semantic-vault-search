@@ -76,7 +76,7 @@ def embed_query(text: str) -> list:
 def tool_search_vault(params: dict) -> dict:
     """Search vault secara semantic menggunakan Ollama embedding + LanceDB cosine similarity."""
     query = params.get("query", "")
-    top_k = min(max(params.get("top_k", 5), 1), 20)
+    top_k = min(max(params.get("top_k", 8), 1), 20)
 
     if not query:
         return {"error": "query is required"}
@@ -227,7 +227,7 @@ TOOL_DEFINITIONS = [
         "description": (
             "Search vault secara semantic. "
             "PAKAI INI sebelum menjawab pertanyaan tentang trading setup, error, project, DeFi, tools, atau apapun yang mungkin ada di vault. "
-            "Arguments: query (str), top_k (int, default 5, max 20). "
+            "Arguments: query (str), top_k (int, default 8, max 20). "
             "Returns: list of chunks dengan source filepath, similarity score, dan content snippet."
         ),
         "inputSchema": {
@@ -239,8 +239,8 @@ TOOL_DEFINITIONS = [
                 },
                 "top_k": {
                     "type": "integer",
-                    "description": "Jumlah hasil yang diinginkan (default 5, max 20)",
-                    "default": 5,
+                    "description": "Jumlah hasil yang diinginkan (default 8, max 20)",
+                    "default": 8,
                     "minimum": 1,
                     "maximum": 20,
                 },

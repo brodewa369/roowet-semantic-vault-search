@@ -146,7 +146,7 @@ flowchart TD
     %% ===== STAGE 5 CLASSIFICATION (agent detects need first) =====
     S1["User query / task"] --> S5{"Stage 5: Classification<br/>Need detail from vault?"}
     S5 -->|NO — SIMPLE| S5a["Answer directly<br/>(1–3 tool calls, no vault)"]
-    S5 -->|YES — MEDIUM/COMPLEX| S5b["search_vault(query, top_k=5)"]
+    S5 -->|YES — MEDIUM/COMPLEX| S5b["search_vault(query, top_k=8)"]
 
     S5b --> S5c{"Relevant chunks<br/>found?"}
     S5c -->|YES| S5d["Read context (read_vault_file if needed)<br/>+ Holographic Memory + prior session"]
@@ -196,7 +196,7 @@ flowchart TD
 
 | Tool | Description |
 |------|-------------|
-| `search_vault(query, top_k=5)` | Semantic search by meaning |
+| `search_vault(query, top_k=8)` | Semantic search by meaning |
 | `read_vault_file(filepath)` | Read full file content |
 | `vault_stats()` | Index statistics |
 | `get_chunk(source)` | Get all chunks for a file |
