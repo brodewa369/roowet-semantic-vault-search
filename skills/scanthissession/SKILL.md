@@ -51,6 +51,13 @@ For each item in the list (Step 2):
 4. `## Related` with at least 1 wikilink.
 5. Auto-tag: `<HERMES_SCRIPTS>/auto-tag.py <file> --apply` (replace `<HERMES_SCRIPTS>` with your Hermes scripts path, e.g. `AppData/Local/hermes/scripts` on Windows or `~/.hermes/scripts` on Linux/Mac. Use `python` or `python3` per your env).
 
+### Step 3b — Optional: script-assisted batch post-processing
+If the companion vault-maintenance scripts are installed in `<HERMES_SCRIPTS>` (`auto-tag.py`, `wiki_connection_finder.py`, `moc_maintenance.py`, `realtime_log.py`), run the wrapper to automate tagging + connection-finding + MOC update + daily-note logging for all written files at once:
+```bash
+python3 <HERMES_SCRIPTS>/session_scan.py --files <file1,file2,...> --topic <topic> --type session-scan
+```
+This is the batch equivalent of Steps 3–4 above. It reads `VAULT_ROOT` and `HERMES_SCRIPTS` env vars (or edit the constants at the top of the script). Requires those 4 companion scripts present in `<HERMES_SCRIPTS>`; missing ones are skipped with a warning.
+
 ### Step 4 — Daily-note + Session-log (REQUIRED, use decision rule)
 **Decision rule (distinguish the two):**
 - Session scanned is just 1 simple task / a few short tasks → **daily-note only**.
