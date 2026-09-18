@@ -446,7 +446,7 @@ The agent scans the session transcript, detects vault-relevant items (errors, de
 
 ```bash
 /scanthissession
-# or say: "scan session", "log session ini"
+# or say: "scan session", "log this session"
 ```
 
 **When:** after a long session (>10 tool calls), before ending a session.

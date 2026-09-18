@@ -1,6 +1,6 @@
 ---
 name: scanthissession
-description: Scan current or active session transcript, detect vault-relevant items (topic, blocker, correction, decision, error/bug, knowledge-gap, lesson, pattern, skill-usage, entity, person, topic), then WRITE them to the correct vault folder per rules. Use after a work session, when user says scan session, or before ending a long task. Trigger words scan session, log session ini, scanthisession. NOTE: replace `<VAULT_ROOT>` and `<HERMES_SCRIPTS>` with your environment paths before use.
+description: Scan current or active session transcript, detect vault-relevant items (topic, blocker, correction, decision, error/bug, knowledge-gap, lesson, pattern, skill-usage, entity, person, topic), then WRITE them to the correct vault folder per rules. Use after a work session, when user says scan session, or before ending a long task. Trigger words scan session, log this session, scanthisession. NOTE: replace `<VAULT_ROOT>` and `<HERMES_SCRIPTS>` with your environment paths before use.
 ---
 
 # /scanthissession — Session Scanner & Vault Writer
