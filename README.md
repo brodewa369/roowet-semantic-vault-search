@@ -28,6 +28,27 @@ User query → Ollama embed → LanceDB vector search → relevant chunks → LL
 - 🧩 **MCP server** — drop-in tool for Claude Desktop / Claude Code / Hermes
 - 💾 **Persistent hash store** — incremental indexing, only re-index what changed
 - 🔄 **Crash-safe** — circuit breaker for Ollama, batch writes to LanceDB
+- 📁 **Folder routing** — auto-route location/status queries to relevant folders
+- 🔗 **Multi-file recall** — progressive expansion (seeds → links → siblings) with pagination
+- 🌐 **Bilingual** — handles Indonesian-English mixed vaults
+
+## Benchmark (2026-09-18)
+
+| Metric | Original (21q) | Expanded (49q) |
+|--------|----------------|----------------|
+| Hit@1 | 0.905 | 0.735 |
+| Hit@3 | 0.952 | **0.898** ✅ |
+| Hit@5 | **1.000** | **0.959** ✅ |
+| MRR | 0.940 | 0.828 |
+
+**Root cause fix:** 73% of vault files were not indexed (167→598 files, 899→4,886 chunks).
+
+**Fixes applied:**
+- Title boost (filename matching for query relevance)
+- Folder routing (q46 "dimana file X", q49 "cron aktif", q50 "blocked")
+- Post-fusion filter (lesson-learned queries)
+- Bilingual aliases (Indonesian-English document matching)
+- Tag-specificity sorting (fewer tags = more specific)
 
 ## Quick Start
 

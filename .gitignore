@@ -24,3 +24,9 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Eval scratch outputs (keep scripts + golden_queries.json)
+eval/*.json
+eval/*.jsonl
+eval/*.log
+eval/*stderr*

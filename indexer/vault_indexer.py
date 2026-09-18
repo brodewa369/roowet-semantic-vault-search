@@ -19,10 +19,14 @@ import time
 import hashlib
 import logging
 import threading
-import msvcrt
-import re
+import fcntl
 from pathlib import Path
 from datetime import datetime
+import re
+from dotenv import load_dotenv
+
+# Load .env from the same directory as this script
+load_dotenv(Path(__file__).parent / ".env")
 
 # ── Config (env-var driven) ─────────────────────────────────────────────────
 
@@ -37,6 +41,8 @@ MAX_BACKUPS = int(os.getenv("MAX_BACKUPS", "2"))
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3")
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "512"))
+CHILD_SIZE = int(os.getenv("CHILD_SIZE", "250"))
+PARENT_SIZE = int(os.getenv("PARENT_SIZE", "800"))
 OVERLAP = int(os.getenv("OVERLAP", "64"))
 WATCH_INTERVAL = int(os.getenv("WATCH_INTERVAL", "5"))
 EXCLUDE_DIRS = set(os.getenv("EXCLUDE_DIRS", ".obsidian,.trash,.git,__pycache__").split(","))
@@ -65,7 +71,7 @@ def acquire_lock():
     global _lock_fh
     try:
         _lock_fh = open(LOCK_FILE, 'w')
-        msvcrt.locking(_lock_fh.fileno(), msvcrt.LK_NBLCK, 1)
+        fcntl.flock(_lock_fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         _lock_fh.write(str(os.getpid()))
         _lock_fh.flush()
         log.info(f"Instance lock acquired (PID: {os.getpid()})")
@@ -77,7 +83,7 @@ def release_lock():
     global _lock_fh
     if _lock_fh:
         try:
-            msvcrt.locking(_lock_fh.fileno(), msvcrt.LK_UNLCK, 1)
+            fcntl.flock(_lock_fh.fileno(), fcntl.LOCK_UN)
             _lock_fh.close()
         except Exception:
             pass
@@ -308,6 +314,46 @@ def chunk_file(content: str, filepath: str) -> list[dict]:
     return chunks
 
 
+# ── Frontmatter parsing ───────────────────────────────────────────────────────
+
+def parse_frontmatter(content: str) -> dict:
+    """Parse YAML frontmatter from markdown content. Returns dict of fields."""
+    fm = {}
+    if content.startswith("---"):
+        parts = content.split("---", 2)
+        if len(parts) >= 3:
+            import yaml
+            try:
+                fm = yaml.safe_load(parts[1]) or {}
+            except Exception:
+                fm = {}
+    return fm
+
+
+def build_meta_prefix(fm: dict, rel_path: str) -> str:
+    """Build a metadata prefix string to prepend to each chunk for better retrieval."""
+    parts = []
+    if fm.get("tags"):
+        tags = fm["tags"]
+        if isinstance(tags, list):
+            parts.append("tags: " + ", ".join(str(t) for t in tags))
+        else:
+            parts.append("tags: " + str(tags))
+    if fm.get("type"):
+        parts.append("type: " + str(fm["type"]))
+    if fm.get("status"):
+        parts.append("status: " + str(fm["status"]))
+    if fm.get("title"):
+        parts.append("title: " + str(fm["title"]))
+    if fm.get("date"):
+        parts.append("date: " + str(fm["date"]))
+    # Always include the relative path for context
+    parts.append("path: " + rel_path)
+    if parts:
+        return " | ".join(parts) + " || "
+    return ""
+
+
 # ── Indexer ───────────────────────────────────────────────────────────────────
 
 class VaultIndexer:
@@ -335,11 +381,35 @@ class VaultIndexer:
             self.table = self.db.open_table("vault_chunks")
             _ = len(self.table)
             log.info(f"Opened existing table. Rows: {len(self.table)}")
+            self._refresh_fts_if_stale()
         except Exception:
             if os.path.exists(lance_path):
                 shutil.rmtree(lance_path, ignore_errors=True)
             self.table = self.db.create_table("vault_chunks", schema=schema, mode="create")
             log.info("Created new vault_chunks table")
+
+    def _refresh_fts_if_stale(self):
+        """FTS index must cover all rows; after table rebuilds (dedup, restore,
+        delete-all re-add) the index can go stale (0 rows indexed). Rebuild then."""
+        try:
+            have_fts = False
+            stale = False
+            total = len(self.table)
+            for idx in self.table.list_indices():
+                if "FTS" in str(idx.index_type) or "INVERTED" in str(idx.index_type):
+                    have_fts = True
+                    if getattr(idx, "num_indexed_rows", total) < total * 0.9:
+                        stale = True
+                        self.table.drop_index(idx.name)
+                        break
+            if stale or not have_fts:
+                from lancedb.index import FTS
+                self.table.create_index("text", config=FTS())
+                log.info("FTS index rebuilt")
+            else:
+                log.info("FTS index healthy")
+        except Exception as e:
+            log.warning(f"FTS refresh failed (non-fatal): {e}")
 
     def _load_existing_hashes(self):
         import json
@@ -467,6 +537,17 @@ class VaultIndexer:
         if not chunks:
             return 0
 
+        # Per-file chunk dedup: same text twice in one file (or template text shared
+        # across files) produces identical chunk_ids; LanceDB would store duplicates
+        # that then skew RRF fusion (score accumulates per occurrence). Keep first.
+        seen_ids = set()
+        uniq_chunks = []
+        for c in chunks:
+            if c["chunk_id"] not in seen_ids:
+                seen_ids.add(c["chunk_id"])
+                uniq_chunks.append(c)
+        chunks = uniq_chunks
+
         # True batch embedding
         texts = [c["text"] for c in chunks]
         vectors = self.embedder.embed_batch(texts, batch_size=BATCH_SIZE)
@@ -514,7 +595,7 @@ class VaultIndexer:
         self._is_indexing = False
         return total
 
-    def search(self, query: str, top_k: int = 8) -> list[dict]:
+    def search(self, query: str, top_k: int = 5) -> list[dict]:
         """Semantic search. Returns top K matching chunks."""
         vec = self.embedder.embed(query)
         if not vec:
