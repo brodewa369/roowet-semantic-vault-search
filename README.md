@@ -16,8 +16,14 @@
 
 Search your markdown vault by **meaning** (not keyword matching). Runs fully local — zero API costs, zero data leaves your machine.
 
+**Benchmark (2026-09-18):**
+- Original 21-query golden set: **Hit@5 = 1.000** ✅
+- Expanded 49-query set: **Hit@5 = 0.959** ✅ (target 95% met)
+- Full reindex: **598 files → 4,886 chunks** (from 167 files → 899 chunks)
+- Multi-file recall: **86 files / 3 pages** for broad queries
+
 ```
-User query → Ollama embed → LanceDB vector search → relevant chunks → LLM context
+User query → Ollama embed → LanceDB hybrid search (BM25 + vector RRF) → relevant chunks → LLM context
 ```
 
 ## Features
@@ -32,7 +38,206 @@ User query → Ollama embed → LanceDB vector search → relevant chunks → LL
 - 🔗 **Multi-file recall** — progressive expansion (seeds → links → siblings) with pagination
 - 🌐 **Bilingual** — handles Indonesian-English mixed vaults
 
-## Benchmark (2026-09-18)
+## Quick Start
+
+### Prerequisites
+
+- Python 3.10+
+- [Ollama](https://ollama.ai) running locally
+- `bge-m3` embedding model pulled
+
+```bash
+# Install
+pip install lancedb pyarrow watchdog requests
+
+# Pull embedding model
+ollama pull bge-m3
+
+# Start MCP server
+python mcp_server/entry.py
+```
+
+### MCP Client Config
+
+Add to your MCP client config:
+
+```yaml
+semantic-vault:
+  command: python
+  args: ["mcp_server/entry.py"]
+  env:
+    VAULT_ROOT: /path/to/your/vault
+    LANCEDB_PATH: /path/to/lancedb
+    OLLAMA_BASE_URL: http://localhost:11434
+    EMBED_MODEL: bge-m3
+  working_directory: /path/to/semantic-vault-mcp
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Obsidian Vault (.md)                         │
+│  /home/dxwx/wiki/  (598 files, 9 top-level folders)                │
+│    ├── 00-NOTES/  ├── 01-AGENT-MEMORY/  ├── 02-KNOWLEDGE/          │
+│    ├── 03-RESEARCH/  ├── 04-LOGS/  ├── 05-PROJECT/                 │
+│    ├── 06-SYSTEM/  ├── 07-INDEX/  └── 08-BRODEWA-HERMES-SYSTEM/    │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      vault_indexer.py                                │
+│                                                                      │
+│  1. Scan vault (rglob *.md, exclude .obsidian/.trash/.git)        │
+│  2. MD5 hash → skip unchanged files                                 │
+│  3. Chunk by ## headers (parent 800c + child 250c, overlap 64c)     │
+│  4. Batch embed via Ollama /api/embed (50 chunks/batch)             │
+│  5. Store in LanceDB (chunk_id, source, text, vector[1024])        │
+│  6. FTS index for BM25 search                                       │
+│                                                                      │
+│  Circuit breaker: 5 failures → pause 60s                            │
+│  Backup before dedup: ~/.hermes/backups/vault_vectors_*/            │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                        LanceDB Store                                 │
+│                                                                      │
+│  Table: vault_chunks                                                │
+│  ┌────────────────────────────────────────────────────────────┐    │
+│  │ chunk_id: str (PK)      │ source: str (filepath)           │    │
+│  │ text: str (markdown)    │ vector: float[1024] (bge-m3)    │    │
+│  │ indexed_at: str (ISO)   │                                  │    │
+│  └────────────────────────────────────────────────────────────┘    │
+│                                                                      │
+│  4,886 chunks from 598 files                                        │
+│  FTS index (BM25) for keyword search                               │
+│  Hash store: filepath → MD5(content)                                │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                vault_search_hardened.py + vault_search_candidate.py   │
+│                                                                      │
+│  Query → Intent Detection → Route:                                  │
+│    ├─ "dimana file X"?       → folder_page(X)                      │
+│    ├─ "cron aktif"?          → folder_page(04-LOGS/morning-brief/) │
+│    ├─ "blocked"?             → folder_page(01-AGENT-MEMORY/blockers/)│
+│    ├─ tag query?             → metadata_page(tags, sort by specificity)│
+│    ├─ date query?            → metadata_page(date, daily-note priority)│
+│    ├─ "lesson learned"?      → FTS+Vector → filter lessons-learned/ │
+│    └─ general query?         → Hybrid search:                       │
+│        1. FTS (BM25) → top-60, weight 0.4                          │
+│        2. Vector (cosine) → top-60, weight 0.6                     │
+│        3. RRF fusion → combined ranking                            │
+│        4. Title boost (0.5x per matching word)                     │
+│        5. Dedup by source file                                     │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                        MCP Tools                                     │
+│                                                                      │
+│  search_vault(query, top_k=15) → ranked semantic search             │
+│  search_by_tag(tags, limit=20) → metadata filter by tags            │
+│  search_by_date(date, limit=20) → metadata filter by date           │
+│  recall(topic, char_budget=7000, top_k=20) → multi-file expansion   │
+│  read_vault_file(filepath) → full file content                      │
+│  vault_stats() → index statistics                                    │
+│  get_chunk(source) → all chunks for one file                        │
+│  reindex_file(filepath) → re-index single file                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+## Full Pipeline
+
+```mermaid
+flowchart TD
+    S1["User query / task"] --> S5{"Stage 5: Classification<br/>Need detail from vault?"}
+    S5 -->|NO — SIMPLE| S5a["Answer directly<br/>(1–3 tool calls, no vault)"]
+    S5 -->|YES — MEDIUM/COMPLEX| S5b["search_vault(query, top_k=15)<br/>or recall(topic) for multi-file"]
+
+    S5b --> S5c{"Relevant chunks<br/>found?"}
+    S5c -->|YES| S5d["Read context (read_vault_file if needed)"]
+    S5c -->|NO / score < 0.5| S5e["Answer from own knowledge<br/>(state 'not found in vault')"]
+    S5d --> S6["Execution (tool calls, code, write)"]
+    S5e --> S6
+    S5a --> S6
+    S6 --> S7["Generate & deliver response"]
+    S7 --> S8["Post-task: auto-log vault + memory update"]
+
+    S5b -.->|MCP call| Q1["mcp_server/server.py"]
+    Q1 --> Q1a{"Query type?"}
+    Q1a -->|"dimana/cron/blocked"| Q1b["folder_page()<br/>(direct folder match)"]
+    Q1a -->|"tag filter"| Q1c["search_by_tag()<br/>(tag-specificity sort)"]
+    Q1a -->|"date filter"| Q1d["search_by_date()<br/>(daily-note priority)"]
+    Q1a -->|"lesson learned"| Q1e["FTS+Vector → filter<br/>lessons-learned/ folder"]
+    Q1a -->|"general"| Q1f["Hybrid search:<br/>FTS 0.4 + Vector 0.6 RRF"]
+
+    Q1f --> Q2["embed_query(query)<br/>POST /api/embeddings → Ollama bge-m3"]
+    Q2 --> Q3["LanceDB FTS search (BM25)<br/>+ Vector search (cosine)"]
+    Q3 --> Q4["RRF fusion + title boost<br/>+ dedup by source"]
+    Q4 -.-> S5c
+
+    subgraph IDX["INDEX PIPELINE (--once / --watch)"]
+        I1["vault_indexer.py"] --> I2["Scan VAULT_ROOT *.md"]
+        I2 --> I3["MD5 vs hash store<br/>(skip unchanged)"]
+        I3 -->|changed| I4["Chunk by ## headers<br/>(04-LOGS/ → per-entry)"]
+        I4 --> I5["embed_batch(50/call)<br/>POST /api/embed → Ollama"]
+        I5 --> I6["table.add(rows)<br/>chunk_id|source|text|vector[1024]"]
+        I6 --> I7["Update hash store"]
+    end
+
+    I5 -.-> OLLAMA[(Ollama bge-m3)]
+    I6 --> LANCE[(LanceDB vault_chunks.lance)]
+    Q3 --> LANCE
+    LANCE -.->|watchdog --watch| I3
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `python indexer/vault_indexer.py --once` | Index all vault files once (incremental) |
+| `python indexer/vault_indexer.py --watch` | Run as file watcher daemon |
+| `python indexer/vault_indexer.py --reindex` | Clear and re-index everything |
+| `python mcp_server/entry.py` | Start MCP server (stdio transport) |
+| `python eval/verify_release_wire.py mcp_server/server.py` | Full 50-query acceptance test |
+| `python eval/recall_context_wire.py mcp_server/entry.py` | Multi-file recall wire test |
+| `python eval/recall_coverage_tests.py` | Contract tests (9 tests) |
+
+## MCP Tools
+
+| Tool | Description | When to use |
+|------|-------------|-------------|
+| `search_vault(query, top_k=15)` | Semantic search by meaning | Find content by concept |
+| `search_by_tag(tags, limit=20)` | Metadata filter by tags | Filter by specific tags |
+| `search_by_date(date, limit=20)` | Metadata filter by date | Find entries from specific dates |
+| `recall(topic, char_budget=7000, top_k=20)` | Multi-file context expansion | Broad topic needing many related files |
+| `read_vault_file(filepath)` | Read full file content | Need full context after search |
+| `vault_stats()` | Index statistics | Check index health |
+| `get_chunk(source)` | Get all chunks for one file | Debug indexing |
+| `reindex_file(filepath)` | Re-index single file | After editing outside watcher |
+
+### Multi-File Recall
+
+```
+recall("crypto bot ggscalping wallet tracking", char_budget=7000)
+
+1. Seeds = search_vault results (ranked)
+2. Expansion rounds:
+   - Round 1: Exact one-hop [[wikilinks]] from seeds
+   - Round 2: Cluster siblings (≥2 seeds in same project folder)
+3. Hard budgets:
+   - MAX_FILES = 40
+   - MIN_EXCERPT = 250 chars
+   - MAX_FILE_TOPUP = 1500 chars
+4. Provenance: seed/sibling/neighbor labels
+5. Pagination: snapshot-checked, offset-based
+   - omitted_sources / partial_sources / unresolved_links reported
+```
+
+## Benchmark Results
 
 | Metric | Original (21q) | Expanded (49q) |
 |--------|----------------|----------------|
@@ -45,186 +250,10 @@ User query → Ollama embed → LanceDB vector search → relevant chunks → LL
 
 **Fixes applied:**
 - Title boost (filename matching for query relevance)
-- Folder routing (q46 "dimana file X", q49 "cron aktif", q50 "blocked")
+- Folder routing (location/status queries)
 - Post-fusion filter (lesson-learned queries)
-- Bilingual aliases (Indonesian-English document matching)
+- Bilingual aliases (Indonesian-English matching)
 - Tag-specificity sorting (fewer tags = more specific)
-
-## Quick Start
-
-### Prerequisites
-
-- Python 3.10+
-- [Ollama](https://ollama.com) running locally
-- An Obsidian vault (or any markdown folder)
-
-### 1. Install
-
-```bash
-# Clone
-git clone https://github.com/brodewa369/roowet-semantic-vault-search.git
-cd semantic-vault-mcp
-
-# Windows
-setup.bat
-
-# Linux/Mac
-chmod +x setup.sh && ./setup.sh
-```
-
-### 2. Configure
-
-Edit `.env`:
-
-```env
-VAULT_ROOT=C:/Users/you/your-obsidian-vault
-OLLAMA_BASE_URL=http://localhost:11434
-EMBED_MODEL=bge-m3
-```
-
-### 3. Index your vault
-
-```bash
-python indexer/vault_indexer.py --once
-```
-
-### 4. Add MCP to Claude Desktop / Hermes
-
-```json
-{
-  "mcpServers": {
-    "semantic-vault": {
-      "command": "python",
-      "args": ["-m", "mcp_server.server"],
-      "env": {
-        "VAULT_ROOT": "C:/Users/you/your-vault",
-        "LANCEDB_PATH": "./data/lancedb",
-        "OLLAMA_BASE_URL": "http://localhost:11434",
-        "EMBED_MODEL": "bge-m3"
-      }
-    }
-  }
-}
-```
-
-Restart Claude Desktop. You now have `search_vault()`, `read_vault_file()`, `vault_stats()` in your agent's toolbelt.
-
-## Architecture
-
-```mermaid
-graph TB
-    subgraph Vault["📁 Markdown Vault (VAULT_ROOT)"]
-        MD[".md files<br/>01-AGENT-MEMORY/ 02-KNOWLEDGE/<br/>03-RESEARCH/ ... (excl: .obsidian .trash .git)"]
-    end
-
-    subgraph Indexer["⚙️ vault_indexer.py"]
-        SCAN["Scan .md (rglob)"]
-        CHUNK["Chunk by ## headers<br/>(CHUNK_SIZE=512 words, OVERLAP=64)<br/>04-LOGS/ → per-entry (## HH:MM) chunks"]
-        HASH["MD5 hash store<br/>(incremental change detect)"]
-        EMBED["OllamaEmbedder.embed_batch()<br/>/api/embed — 50 chunks/call<br/>circuit breaker (5 fails → 60s pause)"]
-        LOCK["Instance lock (msvcrt)<br/>+ backup before index"]
-    end
-
-    subgraph Store["💾 LanceDB (LANCEDB_PATH)"]
-        LANCE["vault_chunks.lance table<br/>chunk_id | source | text | vector[1024] | indexed_at"]
-        HASHJSON["vault_indexer_hashes.json<br/>filepath → MD5"]
-    end
-
-    subgraph Ollama["🤖 Ollama (localhost:11434)"]
-        MODEL["EMBED_MODEL: bge-m3<br/>(1024-dim, multilingual)"]
-    end
-
-    subgraph MCP["🔌 mcp_server/server.py (stdio JSON-RPC)"]
-        TOOLS["Tools:<br/>search_vault · read_vault_file<br/>vault_stats · get_chunk<br/>reindex_file · index_stats"]
-        QEMBED["embed_query()<br/>/api/embeddings"]
-    end
-
-    subgraph Client["🤖 MCP Client (Agent)"]
-        AGENT["Claude / Hermes / Codex / OpenClaw<br/>SOUL.md (agent identity template)"]
-        SKILL["/scanthissession skill<br/>(scan → write vault)"]
-        SS["session_scan.py<br/>(batched local scan variant)"]
-    end
-
-    Vault --> SCAN
-    SCAN --> CHUNK --> HASH
-    CHUNK --> EMBED --> Ollama
-    Ollama --> MODEL
-    EMBED --> LANCE
-    HASH --> HASHJSON
-    LOCK -.-> Store
-
-    Client -->|MCP tools/call| MCP
-    AGENT --> SKILL
-    SKILL --> SS
-    TOOLS --> QEMBED --> Ollama
-    QEMBED --> LANCE
-    TOOLS -->|read_vault_file| Vault
-    MCP -->|search results| Agent
-```
-
-## Full Pipeline
-
-```mermaid
-flowchart TD
-    %% ===== STAGE 5 CLASSIFICATION (agent detects need first) =====
-    S1["User query / task"] --> S5{"Stage 5: Classification<br/>Need detail from vault?"}
-    S5 -->|NO — SIMPLE| S5a["Answer directly<br/>(1–3 tool calls, no vault)"]
-    S5 -->|YES — MEDIUM/COMPLEX| S5b["search_vault(query, top_k=8)"]
-
-    S5b --> S5c{"Relevant chunks<br/>found?"}
-    S5c -->|YES| S5d["Read context (read_vault_file if needed)<br/>+ Holographic Memory + prior session"]
-    S5c -->|NO / score < 0.5| S5e["Answer from own knowledge<br/>(state 'not found in vault')"]
-    S5d --> S6["Execution (tool calls, code, write)"]
-    S5e --> S6
-    S5a --> S6
-    S6 --> S7["Generate & deliver response"]
-    S7 --> S8["Post-task: auto-log vault + memory update<br/>(/scanthissession)"]
-
-    %% ===== QUERY MECHANISM =====
-    S5b -.->|MCP call| Q1["mcp_server/server.py<br/>tool_search_vault()"]
-    Q1 --> Q2["embed_query(query)<br/>POST /api/embeddings → Ollama bge-m3"]
-    Q2 --> Q3["LanceDB table.search(vector).limit(top_k)"]
-    Q3 --> Q4["return: source, text, score"]
-    Q4 -.-> S5c
-
-    %% ===== INDEX PIPELINE =====
-    subgraph IDX["🔄 INDEX PIPELINE (--once / --watch / --reindex)"]
-        I1["vault_indexer.py"] --> I2["Scan VAULT_ROOT *.md<br/>(excl .obsidian/.trash/.git)"]
-        I2 --> I3["MD5 vs hash store<br/>(skip if unchanged)"]
-        I3 -->|changed| I4["chunk_file() by ## headers<br/>(04-LOGS/ → per-entry chunks)"]
-        I4 --> I5["embed_batch(50/call)<br/>POST /api/embed → Ollama"]
-        I5 --> I6["table.add(rows)<br/>chunk_id|source|text|vector[1024]|indexed_at"]
-        I6 --> I7["update hash store"]
-    end
-    I5 -.-> OLLAMA[(Ollama bge-m3)]
-    I6 --> LANCE[(LanceDB vault_chunks.lance)]
-    Q3 --> LANCE
-    LANCE -.->|watchdog --watch| I3
-
-    %% ===== MAINTENANCE =====
-    M1["cron every 6h: --once (incremental)"] -.-> I1
-    M2["reindex_file(filepath) MCP tool"] -.-> I4
-```
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `python indexer/vault_indexer.py --once` | Index all vault files once |
-| `python indexer/vault_indexer.py --watch` | Run as file watcher daemon |
-| `python indexer/vault_indexer.py --reindex` | Clear and re-index everything |
-| `python -m mcp_server.server` | Start MCP server (stdio transport) |
-
-## MCP Tools
-
-| Tool | Description |
-|------|-------------|
-| `search_vault(query, top_k=8)` | Semantic search by meaning |
-| `read_vault_file(filepath)` | Read full file content |
-| `vault_stats()` | Index statistics |
-| `get_chunk(source)` | Get all chunks for a file |
-| `reindex_file(filepath)` | Re-index a specific file |
-| `index_stats()` | Hash-store statistics |
 
 ## Environment Variables
 
@@ -234,45 +263,60 @@ flowchart TD
 | `LANCEDB_PATH` | ✅ | `./data/lancedb` | Vector store path |
 | `OLLAMA_BASE_URL` | ✅ | `http://localhost:11434` | Ollama endpoint |
 | `EMBED_MODEL` | ✅ | `bge-m3` | Embedding model |
-| `EMBED_DIM` | ❌ | `1024` | Embedding dimensions |
-| `CHUNK_SIZE` | ❌ | `512` | Chunk size (chars) |
-| `OVERLAP` | ❌ | `64` | Chunk overlap |
+| `CHUNK_SIZE` | ❌ | `512` | Child chunk size (chars) |
+| `PARENT_SIZE` | ❌ | `800` | Parent chunk size (chars) |
+| `CHILD_SIZE` | ❌ | `250` | Child chunk size (chars) |
+| `OVERLAP` | ❌ | `64` | Chunk overlap (chars) |
 | `BATCH_SIZE` | ❌ | `50` | Embedding batch size |
-| `EXCLUDE_DIRS` | ❌ | `.obsidian,.trash,.git` | Folders to skip |
-| `MAX_BACKUPS` | ❌ | `2` | Backup retention |
+| `EXCLUDE_DIRS` | ❌ | `.obsidian,.trash,.git,__pycache__` | Folders to skip |
+| `MAX_BACKUPS` | ❌ | `2` | Backup retention count |
+| `WATCH_INTERVAL` | ❌ | `5` | File watcher interval (seconds) |
 
 ## Project Structure
 
 ```
-semantic-vault-mcp/
-├── README.md               # Quick start + MCP config
-├── AGENTS.md               # Technical MCP context + Hermes integration
-├── SOUL.md                # Agent identity template — PURPOSE: agent non-Claude (Hermes/Codex/OpenClaw/OpenCode)
-├── skills/                 # Agent skills
-│   └── scanthissession/    # /scanthissession — scan session → write to vault
-├── LICENSE                 # MIT
-├── pyproject.toml        # pip install .
-├── requirements.txt
-├── .env.example           # All 12 env vars documented
+roowet-semantic-vault-search/
+├── README.md                  # This file — quick start + reference
+├── AGENTS.md                  # Hermes integration guide
+├── SOUL.md                    # Agent identity template
+├── LICENSE                    # MIT
+├── pyproject.toml             # pip install .
+├── requirements.txt           # Python deps
+├── .env.example               # All env vars documented
 ├── .gitignore
-├── setup.bat              # Windows one-click setup
-├── setup.sh               # Linux/Mac one-click setup
+├── setup.bat                  # Windows one-click setup
+├── setup.sh                   # Linux/Mac one-click setup
 ├── indexer/
 │   ├── __init__.py
-│   └── vault_indexer.py    # Scan → chunk → embed → store
+│   └── vault_indexer.py       # Scan → chunk → embed → store
 ├── mcp_server/
 │   ├── __init__.py
-│   └── server.py           # MCP protocol server
+│   ├── server.py              # MCP protocol + search logic
+│   └── entry.py               # Entry point
+├── vault_search_hardened.py   # Hardened search (folder routing, lesson filter)
+├── vault_search_candidate.py  # Hybrid RRF fusion + title boost
+├── vault_release_handlers.py  # MCP handlers (recall, metadata tools)
+├── vault_recall_context.py    # Multi-file recall with pagination
 ├── scripts/
-│   └── session_scan.py     # Batched session → vault ingestion
-├── vault-structure/         # Example vault layout
-│   ├── README.md           # Folder structure explained
-│   ├── obsidian-setup.md   # Recommended Obsidian plugins
-│   ├── 00-NOTES/ … 08-DOCS/ # 30+ empty folders
-│   ├── 06-SYSTEM/rules/    # Naming, routing, MOC creation
-│   └── 06-SYSTEM/templates/ # 28 note templates
+│   └── session_scan.py        # Batched session → vault ingestion
+├── eval/
+│   ├── verify_release_wire.py # Full 50-query acceptance test
+│   ├── recall_context_wire.py # Multi-file recall wire test
+│   ├── recall_coverage_tests.py # Contract tests (9 tests)
+│   ├── golden_queries.json    # 50-query golden set
+│   └── *.py                   # Other eval scripts
+├── skills/
+│   └── scanthissession/       # Session scanner skill
+│       └── SKILL.md
+├── vault-structure/           # Example vault layout
+│   ├── README.md
+│   ├── obsidian-setup.md
+│   ├── 06-SYSTEM/rules/       # Naming, routing, MOC rules
+│   ├── 06-SYSTEM/templates/   # 28 note templates
+│   └── 00-NOTES/ … 08-DOCS/   # Empty folder examples
 └── docs/
-    └── ARCHITECTURE.md     # Data flow + design decisions
+    ├── ARCHITECTURE.md        # Data flow + design decisions
+    └── banner.jpeg
 ```
 
 ## Requirements
@@ -280,6 +324,23 @@ semantic-vault-mcp/
 - **Ollama** with any embedding model (tested: `bge-m3`, `nomic-embed-text`)
 - Python packages: `lancedb`, `pyarrow`, `requests`, `watchdog`
 - ~2GB RAM for LanceDB (depends on vault size)
+
+## Path Setup
+
+Files in this repo use **relative paths** — no hardcoded PC paths. Configure via `.env`:
+
+```env
+VAULT_ROOT=/home/dxwx/wiki
+LANCEDB_PATH=/home/dxwx/.hermes/vault_vectors
+OLLAMA_BASE_URL=http://localhost:11434
+EMBED_MODEL=bge-m3
+```
+
+For Windows:
+```env
+VAULT_ROOT=C:/Users/you/your-obsidian-vault
+LANCEDB_PATH=C:/Users/you/AppData/Local/hermes/scripts/vault_vectors
+```
 
 ## Keeping Your Index Fresh
 
@@ -296,18 +357,37 @@ python indexer/vault_indexer.py --once
 
 **Recommended cadence:**
 - **Manual:** Run `--once` after any significant vault edit session
-- **Cron:** Auto-index every 6 hours (the indexer is idempotent)
+- **Cron:** Auto-index every 30 minutes via systemd timer
 - **Watch mode:** `--watch` for real-time indexing (runs as daemon)
 
 When in doubt: **re-index before every AI agent session.** A 1-second re-index can save you from getting answers based on stale vault content.
 
+### Systemd Timer (Linux)
+
+```ini
+# ~/.config/systemd/user/vault-indexer.timer
+[Unit]
+Description=Vault Indexer Timer
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+systemctl --user enable --now vault-indexer.timer
+```
+
 ## FAQ
 
 **Q: How long does initial indexing take?**
-A: ~30-60s for 100 files with bge-m3. Batch embedding does 50 chunks per call.
+A: ~3-5 minutes for 598 files with bge-m3. Batch embedding does 50 chunks per call. Incremental re-index takes <1 second.
 
 **Q: Can I use other embedding models?**
-A: Yes. Set `EMBED_MODEL` and `EMBED_DIM` in `.env`. Tested with `bge-m3` (1024d) and `nomic-embed-text` (768d).
+A: Yes. Set `EMBED_MODEL` in `.env`. Tested with `bge-m3` (1024d) and `nomic-embed-text` (768d). Multilingual models work best for mixed-language vaults.
 
 **Q: Does it support incremental updates?**
 A: Yes. Indexer tracks file content hashes (MD5). Re-run `--once` to only index changed files.
@@ -315,25 +395,17 @@ A: Yes. Indexer tracks file content hashes (MD5). Re-run `--once` to only index 
 **Q: Can I use this without Obsidian?**
 A: Yes. Any folder with `.md` files works. Set `VAULT_ROOT` to any markdown directory.
 
-## ⚠️ Path Setup (required before use)
+**Q: What's the difference between `search_vault()` and `recall()`?**
+A: `search_vault()` returns top-K unique files (ranked). `recall()` expands to multiple files via wikilinks and sibling folders — use when you need comprehensive topic coverage.
 
-Files in this repo use **generic placeholders** — no hardcoded PC paths. Replace them before running:
-
-| Placeholder | Meaning | Example (Windows) | Example (Linux/Mac) |
-|---|---|---|---|
-| `<VAULT_ROOT>` | Path to your markdown vault | `C:/Users/you/vault` | `~/vault` |
-| `<HERMES_SCRIPTS>` | Path to Hermes scripts | `AppData/Local/hermes/scripts` | `~/.hermes/scripts` |
-
-In `skills/scanthissession/SKILL.md`: replace `<VAULT_ROOT>` (line ~48) and `<HERMES_SCRIPTS>` (line ~52) with your environment paths.
-`SOUL.md` is a generic template — set `VAULT_ROOT` in `.env` (see `AGENTS.md`) so `search_vault()` works.
-
-**Purpose:** `SOUL.md` = non-Claude agents (Hermes/Codex/OpenClaw/OpenCode). It's a generic template — fill in your own agent identity.
+**Q: Why are some queries returning None?**
+A: Check: (1) Is Ollama running? (2) Is the index up-to-date? (3) Is `VAULT_ROOT` set correctly? (4) Does the expected file exist in the vault?
 
 ## Skills
 
 ### `/scanthissession` — Session Scanner & Vault Writer
 
-The agent scans the session transcript, detects vault-relevant items (errors, decisions, corrections, lessons, etc.), then **automatically writes them to the correct vault folder**. This solves agents "forgetting" to log — the skill FORCES scan + write, instead of relying on passive instructions.
+The agent scans the session transcript, detects vault-relevant items (errors, decisions, corrections, lessons, etc.), then **automatically writes them to the correct vault folder**.
 
 ```bash
 /scanthissession
