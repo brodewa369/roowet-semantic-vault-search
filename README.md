@@ -75,78 +75,77 @@ semantic-vault:
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Obsidian Vault (.md)                         │
-│  /home/dxwx/wiki/  (598 files, 9 top-level folders)                │
-│    ├── 00-NOTES/  ├── 01-AGENT-MEMORY/  ├── 02-KNOWLEDGE/          │
-│    ├── 03-RESEARCH/  ├── 04-LOGS/  ├── 05-PROJECT/                 │
-│    ├── 06-SYSTEM/  ├── 07-INDEX/  └── 08-BRODEWA-HERMES-SYSTEM/    │
-└──────────────────────────┬──────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                      vault_indexer.py                                │
-│                                                                      │
-│  1. Scan vault (rglob *.md, exclude .obsidian/.trash/.git)        │
-│  2. MD5 hash → skip unchanged files                                 │
-│  3. Chunk by ## headers (parent 800c + child 250c, overlap 64c)     │
-│  4. Batch embed via Ollama /api/embed (50 chunks/batch)             │
-│  5. Store in LanceDB (chunk_id, source, text, vector[1024])        │
-│  6. FTS index for BM25 search                                       │
-│                                                                      │
-│  Circuit breaker: 5 failures → pause 60s                            │
-│  Backup before dedup: ~/.hermes/backups/vault_vectors_*/            │
-└──────────────────────────┬──────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                        LanceDB Store                                 │
-│                                                                      │
-│  Table: vault_chunks                                                │
-│  ┌────────────────────────────────────────────────────────────┐    │
-│  │ chunk_id: str (PK)      │ source: str (filepath)           │    │
-│  │ text: str (markdown)    │ vector: float[1024] (bge-m3)    │    │
-│  │ indexed_at: str (ISO)   │                                  │    │
-│  └────────────────────────────────────────────────────────────┘    │
-│                                                                      │
-│  4,886 chunks from 598 files                                        │
-│  FTS index (BM25) for keyword search                               │
-│  Hash store: filepath → MD5(content)                                │
-└──────────────────────────┬──────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                vault_search_hardened.py + vault_search_candidate.py   │
-│                                                                      │
-│  Query → Intent Detection → Route:                                  │
-│    ├─ "dimana file X"?       → folder_page(X)                      │
-│    ├─ "cron aktif"?          → folder_page(04-LOGS/morning-brief/) │
-│    ├─ "blocked"?             → folder_page(01-AGENT-MEMORY/blockers/)│
-│    ├─ tag query?             → metadata_page(tags, sort by specificity)│
-│    ├─ date query?            → metadata_page(date, daily-note priority)│
-│    ├─ "lesson learned"?      → FTS+Vector → filter lessons-learned/ │
-│    └─ general query?         → Hybrid search:                       │
-│        1. FTS (BM25) → top-60, weight 0.4                          │
-│        2. Vector (cosine) → top-60, weight 0.6                     │
-│        3. RRF fusion → combined ranking                            │
-│        4. Title boost (0.5x per matching word)                     │
-│        5. Dedup by source file                                     │
-└──────────────────────────┬──────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                        MCP Tools                                     │
-│                                                                      │
-│  search_vault(query, top_k=15) → ranked semantic search             │
-│  search_by_tag(tags, limit=20) → metadata filter by tags            │
-│  search_by_date(date, limit=20) → metadata filter by date           │
-│  recall(topic, char_budget=7000, top_k=20) → multi-file expansion   │
-│  read_vault_file(filepath) → full file content                      │
-│  vault_stats() → index statistics                                    │
-│  get_chunk(source) → all chunks for one file                        │
-│  reindex_file(filepath) → re-index single file                      │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Vault["📁 Markdown Vault (VAULT_ROOT)"]
+        MD[".md files<br/>598 files, 9 top-level folders<br/>01-AGENT-MEMORY/ 02-KNOWLEDGE/<br/>03-RESEARCH/ 04-LOGS/ 05-PROJECT/<br/>06-SYSTEM/ 07-INDEX/ 08-BRODEWA-HERMES-SYSTEM/"]
+    end
+
+    subgraph Indexer["⚙️ vault_indexer.py"]
+        SCAN["Scan .md (rglob)"]
+        HASH["MD5 hash store<br/>(skip unchanged)"]
+        CHUNK["Chunk by ## headers<br/>(parent 800c + child 250c, overlap 64c)"]
+        EMBED["OllamaEmbedder.embed_batch()<br/>/api/embed — 50 chunks/call<br/>circuit breaker (5 fails → 60s pause)"]
+        FTS["FTS index<br/>(BM25 search)"]
+        BACKUP["Backup before dedup<br/>~/.hermes/backups/vault_vectors_*/"]
+    end
+
+    subgraph Store["💾 LanceDB (LANCEDB_PATH)"]
+        LANCE["vault_chunks.lance table<br/>chunk_id | source | text | vector[1024] | indexed_at<br/>4,886 chunks from 598 files"]
+        HASHJSON["vault_indexer_hashes.json<br/>filepath → MD5"]
+    end
+
+    subgraph Ollama["🤖 Ollama (localhost:11434)"]
+        MODEL["EMBED_MODEL: bge-m3<br/>(1024-dim, multilingual)"]
+    end
+
+    subgraph Search["🔍 vault_search_hardened.py + vault_search_candidate.py"]
+        INTENT["Query → Intent Detection"]
+        ROUTE{"Query type?"}
+        FOLDER["folder_page()<br/>(dimana/cron/blocked)"]
+        META_TAG["metadata_page(tags)<br/>(tag-specificity sort)"]
+        META_DATE["metadata_page(date)<br/>(daily-note priority)"]
+        LESSON["FTS+Vector → filter<br/>lessons-learned/ folder"]
+        HYBRID["Hybrid search:<br/>FTS 0.4 + Vector 0.6 RRF<br/>+ title boost + dedup"]
+    end
+
+    subgraph MCP["🔌 mcp_server/server.py (MCP Tools)"]
+        TOOLS["8 tools:<br/>search_vault · search_by_tag · search_by_date<br/>recall · read_vault_file · vault_stats<br/>get_chunk · reindex_file"]
+    end
+
+    subgraph Client["🤖 MCP Client (Agent)"]
+        AGENT["Claude / Hermes / Codex<br/>SOUL.md (agent identity)"]
+    end
+
+    Vault --> SCAN
+    SCAN --> HASH
+    SCAN --> CHUNK
+    CHUNK --> EMBED
+    CHUNK --> FTS
+    EMBED --> Ollama
+    Ollama --> MODEL
+    EMBED --> LANCE
+    HASH --> HASHJSON
+    BACKUP -.-> Store
+
+    AGENT -->|search_vault()| MCP
+    MCP --> INTENT
+    INTENT --> ROUTE
+    ROUTE -->|"dimana/cron/blocked"| FOLDER
+    ROUTE -->|"tag filter"| META_TAG
+    ROUTE -->|"date filter"| META_DATE
+    ROUTE -->|"lesson learned"| LESSON
+    ROUTE -->|"general query"| HYBRID
+    FOLDER --> LANCE
+    META_TAG --> LANCE
+    META_DATE --> LANCE
+    LESSON --> LANCE
+    HYBRID --> LANCE
+    LANCE --> Store
+
+    TOOLS -->|read_vault_file| Vault
+    MCP -->|search results| Agent
+    AGENT --> AGENT
 ```
 
 ## Full Pipeline
