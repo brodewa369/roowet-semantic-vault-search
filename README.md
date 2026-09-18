@@ -77,44 +77,42 @@ semantic-vault:
 
 ```mermaid
 graph TB
-    subgraph Vault["📁 Markdown Vault (VAULT_ROOT)"]
-        MD[".md files<br/>598 files, 9 top-level folders<br/>01-AGENT-MEMORY/ 02-KNOWLEDGE/<br/>03-RESEARCH/ 04-LOGS/ 05-PROJECT/<br/>06-SYSTEM/ 07-INDEX/ 08-BRODEWA-HERMES-SYSTEM/"]
+    subgraph Vault["Markdown Vault (VAULT_ROOT)"]
+        MD["598 files, 9 top-level folders"]
     end
 
-    subgraph Indexer["⚙️ vault_indexer.py"]
+    subgraph Indexer["vault_indexer.py"]
         SCAN["Scan .md (rglob)"]
-        HASH["MD5 hash store<br/>(skip unchanged)"]
-        CHUNK["Chunk by ## headers<br/>(parent 800c + child 250c, overlap 64c)"]
-        EMBED["OllamaEmbedder.embed_batch()<br/>/api/embed — 50 chunks/call<br/>circuit breaker (5 fails → 60s pause)"]
-        FTS["FTS index<br/>(BM25 search)"]
-        BACKUP["Backup before dedup<br/>~/.hermes/backups/vault_vectors_*/"]
+        HASH["MD5 hash store"]
+        CHUNK["Chunk by ## headers"]
+        EMBED["embed via Ollama"]
+        FTS["FTS index (BM25)"]
     end
 
-    subgraph Store["💾 LanceDB (LANCEDB_PATH)"]
-        LANCE["vault_chunks.lance table<br/>chunk_id | source | text | vector[1024] | indexed_at<br/>4,886 chunks from 598 files"]
-        HASHJSON["vault_indexer_hashes.json<br/>filepath → MD5"]
+    subgraph Store["LanceDB (LANCEDB_PATH)"]
+        LANCE["vault_chunks table"]
+        HASHJSON["hashes.json"]
     end
 
-    subgraph Ollama["🤖 Ollama (localhost:11434)"]
-        MODEL["EMBED_MODEL: bge-m3<br/>(1024-dim, multilingual)"]
+    subgraph Ollama["Ollama (localhost:11434)"]
+        MODEL["EMBED_MODEL: bge-m3"]
     end
 
-    subgraph Search["🔍 vault_search_hardened.py + vault_search_candidate.py"]
+    subgraph Search["vault_search_hardened.py"]
         INTENT["Query → Intent Detection"]
         ROUTE{"Query type?"}
-        FOLDER["folder_page()<br/>(dimana/cron/blocked)"]
-        META_TAG["metadata_page(tags)<br/>(tag-specificity sort)"]
-        META_DATE["metadata_page(date)<br/>(daily-note priority)"]
-        LESSON["FTS+Vector → filter<br/>lessons-learned/ folder"]
-        HYBRID["Hybrid search:<br/>FTS 0.4 + Vector 0.6 RRF<br/>+ title boost + dedup"]
+        FOLDER["folder_page()"]
+        META["metadata_page()"]
+        LESSON["lessons-learned filter"]
+        HYBRID["Hybrid FTS+Vector RRF"]
     end
 
-    subgraph MCP["🔌 mcp_server/server.py (MCP Tools)"]
-        TOOLS["8 tools:<br/>search_vault · search_by_tag · search_by_date<br/>recall · read_vault_file · vault_stats<br/>get_chunk · reindex_file"]
+    subgraph MCP_Server["mcp_server/server.py"]
+        TOOLS["8 MCP tools"]
     end
 
-    subgraph Client["🤖 MCP Client (Agent)"]
-        AGENT["Claude / Hermes / Codex<br/>SOUL.md (agent identity)"]
+    subgraph Client["MCP Client"]
+        AGENT["Claude / Hermes / Codex"]
     end
 
     Vault --> SCAN
@@ -126,71 +124,66 @@ graph TB
     Ollama --> MODEL
     EMBED --> LANCE
     HASH --> HASHJSON
-    BACKUP -.-> Store
 
-    AGENT -->|search_vault()| MCP
-    MCP --> INTENT
+    AGENT --> MCP_Server
+    MCP_Server --> INTENT
     INTENT --> ROUTE
-    ROUTE -->|"dimana/cron/blocked"| FOLDER
-    ROUTE -->|"tag filter"| META_TAG
-    ROUTE -->|"date filter"| META_DATE
-    ROUTE -->|"lesson learned"| LESSON
-    ROUTE -->|"general query"| HYBRID
+    ROUTE --> FOLDER
+    ROUTE --> META
+    ROUTE --> LESSON
+    ROUTE --> HYBRID
     FOLDER --> LANCE
-    META_TAG --> LANCE
-    META_DATE --> LANCE
+    META --> LANCE
     LESSON --> LANCE
     HYBRID --> LANCE
-    LANCE --> Store
 
-    TOOLS -->|read_vault_file| Vault
-    MCP -->|search results| Agent
-    AGENT --> AGENT
+    TOOLS --> Vault
+    MCP_Server --> AGENT
 ```
 
 ## Full Pipeline
 
 ```mermaid
 flowchart TD
-    S1["User query / task"] --> S5{"Stage 5: Classification<br/>Need detail from vault?"}
-    S5 -->|NO — SIMPLE| S5a["Answer directly<br/>(1–3 tool calls, no vault)"]
-    S5 -->|YES — MEDIUM/COMPLEX| S5b["search_vault(query, top_k=15)<br/>or recall(topic) for multi-file"]
+    S1["User query task"] --> S5{"Stage 5 Classification"}
+    S5 -->|NO SIMPLE| S5a["Answer directly"]
+    S5 -->|YES MEDIUM COMPLEX| S5b["search_vault() or recall()"]
 
-    S5b --> S5c{"Relevant chunks<br/>found?"}
-    S5c -->|YES| S5d["Read context (read_vault_file if needed)"]
-    S5c -->|NO / score < 0.5| S5e["Answer from own knowledge<br/>(state 'not found in vault')"]
-    S5d --> S6["Execution (tool calls, code, write)"]
+    S5b --> S5c{"Relevant chunks found"}
+    S5c -->|YES| S5d["Read context"]
+    S5c -->|NO| S5e["Answer from knowledge"]
+    S5d --> S6["Execution"]
     S5e --> S6
     S5a --> S6
-    S6 --> S7["Generate & deliver response"]
-    S7 --> S8["Post-task: auto-log vault + memory update"]
+    S6 --> S7["Generate response"]
+    S7 --> S8["Post-task log"]
 
-    S5b -.->|MCP call| Q1["mcp_server/server.py"]
-    Q1 --> Q1a{"Query type?"}
-    Q1a -->|"dimana/cron/blocked"| Q1b["folder_page()<br/>(direct folder match)"]
-    Q1a -->|"tag filter"| Q1c["search_by_tag()<br/>(tag-specificity sort)"]
-    Q1a -->|"date filter"| Q1d["search_by_date()<br/>(daily-note priority)"]
-    Q1a -->|"lesson learned"| Q1e["FTS+Vector → filter<br/>lessons-learned/ folder"]
-    Q1a -->|"general"| Q1f["Hybrid search:<br/>FTS 0.4 + Vector 0.6 RRF"]
+    S5b -.-> Q1["mcp_server server.py"]
+    Q1 --> Q1a{"Query type"}
+    Q1a -->|"dimana cron blocked"| Q1b["folder_page"]
+    Q1a -->|"tag filter"| Q1c["search_by_tag"]
+    Q1a -->|"date filter"| Q1d["search_by_date"]
+    Q1a -->|"lesson learned"| Q1e["lessons-learned filter"]
+    Q1a -->|"general"| Q1f["Hybrid search"]
 
-    Q1f --> Q2["embed_query(query)<br/>POST /api/embeddings → Ollama bge-m3"]
-    Q2 --> Q3["LanceDB FTS search (BM25)<br/>+ Vector search (cosine)"]
-    Q3 --> Q4["RRF fusion + title boost<br/>+ dedup by source"]
+    Q1f --> Q2["embed_query POST api embeddings"]
+    Q2 --> Q3["LanceDB FTS plus Vector search"]
+    Q3 --> Q4["RRF fusion plus title boost"]
     Q4 -.-> S5c
 
-    subgraph IDX["INDEX PIPELINE (--once / --watch)"]
-        I1["vault_indexer.py"] --> I2["Scan VAULT_ROOT *.md"]
-        I2 --> I3["MD5 vs hash store<br/>(skip unchanged)"]
-        I3 -->|changed| I4["Chunk by ## headers<br/>(04-LOGS/ → per-entry)"]
-        I4 --> I5["embed_batch(50/call)<br/>POST /api/embed → Ollama"]
-        I5 --> I6["table.add(rows)<br/>chunk_id|source|text|vector[1024]"]
+    subgraph IDX["INDEX PIPELINE --once --watch"]
+        I1["vault_indexer.py"] --> I2["Scan VAULT_ROOT md"]
+        I2 --> I3["MD5 vs hash store"]
+        I3 -->|changed| I4["Chunk by headers"]
+        I4 --> I5["embed_batch 50 per call POST api embed"]
+        I5 --> I6["table.add rows chunk_id source text vector"]
         I6 --> I7["Update hash store"]
     end
 
-    I5 -.-> OLLAMA[(Ollama bge-m3)]
-    I6 --> LANCE[(LanceDB vault_chunks.lance)]
+    I5 -.-> OLLAMA["Ollama bge-m3"]
+    I6 --> LANCE["LanceDB vault_chunks lance"]
     Q3 --> LANCE
-    LANCE -.->|watchdog --watch| I3
+    LANCE -.->|"watchdog --watch"| I3
 ```
 
 ## Commands
@@ -329,8 +322,8 @@ roowet-semantic-vault-search/
 Files in this repo use **relative paths** — no hardcoded PC paths. Configure via `.env`:
 
 ```env
-VAULT_ROOT=/home/dxwx/wiki
-LANCEDB_PATH=/home/dxwx/.hermes/vault_vectors
+VAULT_ROOT=/path/to/your/vault
+LANCEDB_PATH=/path/to/lancedb
 OLLAMA_BASE_URL=http://localhost:11434
 EMBED_MODEL=bge-m3
 ```
@@ -340,8 +333,6 @@ For Windows:
 VAULT_ROOT=C:/Users/you/your-obsidian-vault
 LANCEDB_PATH=C:/Users/you/AppData/Local/hermes/scripts/vault_vectors
 ```
-
-## Keeping Your Index Fresh
 
 **Why regular indexing matters:**
 

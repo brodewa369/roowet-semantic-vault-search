@@ -32,7 +32,7 @@ if __name__=='__main__':
     for strategy,weight,chunk,key,dist in [('fts',.4,fts,'_score',False),('vector',.6,vec,'_distance',True)]:
      rr=h.base.unique_rows(chunk,key,dist);rr={s:d for s,d in rr.items() if Path(s).is_file() and Path(s).resolve().is_relative_to(h.base._cfg()['vault_root'])};channels.append((strategy,weight,rr))
     ranked=h.base.fuse_rankers(channels,text)
-    rank=next((i for i,r in enumerate(ranked[:15],1) if any(matches_expected(r['source'],e,'/home/dxwx/wiki') for e in q['expected'])),None)
+    rank=next((i for i,r in enumerate(ranked[:15],1) if any(matches_expected(r['source'],e,'../wiki') for e in q['expected'])),None)
     item['variants'][name]={'rank':rank,'top5':[r['source'] for r in ranked[:5]]}
    f.write(json.dumps(item)+'\n');f.flush();rows.append(item)
  assert len(rows)==42

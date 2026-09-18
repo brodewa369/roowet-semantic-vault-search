@@ -95,7 +95,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        Obsidian Vault (.md)                         │
-│  /home/dxwx/wiki/  (598 files, 9 top-level folders)                │
+│  /path/to/your/vault/  (598 files, 9 top-level folders)              │
 │    ├── 00-NOTES/  ├── 01-AGENT-MEMORY/  ├── 02-KNOWLEDGE/          │
 │    ├── 03-RESEARCH/  ├── 04-LOGS/  ├── 05-PROJECT/                 │
 │    ├── 06-SYSTEM/  ├── 07-INDEX/  └── 08-BRODEWA-HERMES-SYSTEM/    │
@@ -113,7 +113,7 @@
 │  6. FTS index for BM25 search                                       │
 │                                                                      │
 │  Circuit breaker: 5 failures → pause 60s                            │
-│  Backup before dedup: ~/.hermes/backups/vault_vectors_*/            │
+│  Backup before dedup: ./backups/vault_vectors_*/                      │
 └──────────────────────────┬──────────────────────────────────────────┘
                            │
                            ▼

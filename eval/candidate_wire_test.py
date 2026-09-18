@@ -57,7 +57,7 @@ try:
             ms = round(1000*(time.monotonic()-start), 2)
             sources = [r['source'] for r in data['results']]
             assert len(sources) == len(set(sources))
-            rank = next((i for i, s in enumerate(sources, 1) if any(matches_expected(s, e, '/home/dxwx/wiki') for e in q['expected'])), None)
+            rank = next((i for i, s in enumerate(sources, 1) if any(matches_expected(s, e, '../wiki') for e in q['expected'])), None)
             row = {'id': q['id'], 'type': q['type'], 'rank': rank, 'ms': ms, 'sources': sources}
             rows.append(row); f.write(json.dumps(row) + '\n'); f.flush()
     def metrics(items):

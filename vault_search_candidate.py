@@ -17,7 +17,7 @@ MONTHS = {'januari':1,'februari':2,'maret':3,'april':4,'mei':5,'juni':6,'juli':7
 def _cfg():
     from dotenv import load_dotenv
     load_dotenv(Path(__file__).parent / '.env')
-    return {'vault_root':Path(os.getenv('VAULT_ROOT','/home/dxwx/wiki')), 'db_path':os.getenv('LANCEDB_PATH','/home/dxwx/.hermes/vault_vectors'), 'ollama_url':os.getenv('OLLAMA_BASE_URL','http://localhost:11434'), 'embed_model':os.getenv('EMBED_MODEL','bge-m3')}
+    return {'vault_root':Path(os.getenv('VAULT_ROOT','./vault')), 'db_path':os.getenv('LANCEDB_PATH','./data/lancedb'), 'ollama_url':os.getenv('OLLAMA_BASE_URL','http://localhost:11434'), 'embed_model':os.getenv('EMBED_MODEL','bge-m3')}
 
 def tokens(text):
     return set(re.findall(r'[a-z0-9]+',text.lower())) - STOP

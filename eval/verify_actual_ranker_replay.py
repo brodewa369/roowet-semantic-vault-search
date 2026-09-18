@@ -60,7 +60,7 @@ for q in capture['queries']:
     for label, ranker in [('baseline', baseline), ('rrf20', rrf20)]:
         with patch('lancedb.connect', return_value=ReplayDB(q)), patch.object(h, 'embed', return_value=[0.0]), patch.object(h.base, 'fuse_rankers', ranker):
             rows = h.search_vault(q['query'], top_k=15, strict=True)
-        rank = next((i for i, row in enumerate(rows, 1) if any(matches_expected(row['source'], e, '/home/dxwx/wiki') for e in q['expected'])), None)
+        rank = next((i for i, row in enumerate(rows, 1) if any(matches_expected(row['source'], e, '../wiki') for e in q['expected'])), None)
         item['variants'][label] = {'rank': rank, 'results': rows}
     results.append(item)
 assert len(results) == 42, len(results)
@@ -76,10 +76,10 @@ for qid in ('q40', 'q42'):
     v = h.base.unique_rows(q['vector'], '_distance', True)
     ranked = baseline([('fts', .4, f), ('vector', .6, v)], q['query'])
     terms = h.base.tokens(q['query'])
-    selected = {r['source'] for r in ranked[:2]} | {str(Path('/home/dxwx/wiki')/e) for e in q['expected']}
+    selected = {r['source'] for r in ranked[:2]} | {str(Path('../wiki')/e) for e in q['expected']}
     print('DIAGNOSIS', qid, 'TOKENS', sorted(terms), 'IDENTIFIERS', re.findall(r'\b[\w-]+\.(?:dll|py|js|json|yaml|toml|md)\b', q['query']))
     for s in sorted(selected):
-        info = {'source': s, 'exists': Path(s).is_file(), 'inside_root': Path(s).resolve().is_relative_to('/home/dxwx/wiki')}
+        info = {'source': s, 'exists': Path(s).is_file(), 'inside_root': Path(s).resolve().is_relative_to('../wiki')}
         title = re.sub(r'^\d{4}-\d\d-\d\d-', '', Path(s).stem)
         info['title_multiplier'] = 1+.5*len(terms & h.base.tokens(title))/max(len(terms),1)
         for name, channel in [('fts', f), ('vector', v)]:

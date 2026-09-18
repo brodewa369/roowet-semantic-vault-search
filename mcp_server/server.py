@@ -19,7 +19,7 @@ v2 changes (2026-09-13):
 - NEW recall(): single-call context package with char budget
 - NEW read_vault_sections(): token-efficient section reads
 - NEW vault_doctor(): index health report
-- query log: ~/.hermes/vault_vectors/query_log.jsonl (append, rotated at 5MB)
+- query log: ./query_log.jsonl (append, rotated at 5MB)
 """
 
 import os

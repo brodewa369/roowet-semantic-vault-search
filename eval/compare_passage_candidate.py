@@ -49,12 +49,12 @@ for q in capture['queries']:
     with patch('lancedb.connect', return_value=ReplayDB(q)), patch.object(h, 'embed', return_value=[0.0]):
         baseline = h.search_vault(q['query'], top_k=15, strict=True)
     chunks = q['fts'] + q['vector']
-    item = {'id': q['id'], 'type': q['type'], 'query': q['query'], 'variants': {'baseline': {'rank': next((i for i, r in enumerate(baseline, 1) if any(matches_expected(r['source'], e, '/home/dxwx/wiki') for e in q['expected'])), None)}}}
+    item = {'id': q['id'], 'type': q['type'], 'query': q['query'], 'variants': {'baseline': {'rank': next((i for i, r in enumerate(baseline, 1) if any(matches_expected(r['source'], e, '../wiki') for e in q['expected'])), None)}}}
     for mode in ('identifier', 'passage', 'combined'):
         t0 = time.perf_counter()
         rows = pr.rerank(q['query'], baseline, chunks, mode)
         ms = (time.perf_counter()-t0)*1000
-        rank = next((i for i, r in enumerate(rows, 1) if any(matches_expected(r['source'], e, '/home/dxwx/wiki') for e in q['expected'])), None)
+        rank = next((i for i, r in enumerate(rows, 1) if any(matches_expected(r['source'], e, '../wiki') for e in q['expected'])), None)
         item['variants'][mode] = {'rank': rank, 'ms': round(ms, 2)}
     results.append(item)
 assert len(results) == 42, len(results)

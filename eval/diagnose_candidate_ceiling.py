@@ -14,7 +14,7 @@ for q in data['queries']:
  f=b.unique_rows(q['fts'],'_score');v=b.unique_rows(q['vector'],'_distance',True)
  ranked=b.fuse_rankers([('fts',.4,f),('vector',.6,v)],q['query'])
  channels={k:[s for s,d in sorted(rows.items(),key=lambda x:(-x[1]['score'],x[0]))] for k,rows in [('fts',f),('vector',v)]}
- match=lambda s,e:matches_expected(s,e,'/home/dxwx/wiki')
+ match=lambda s,e:matches_expected(s,e,'../wiki')
  targets=[]
  for e in q['expected']:
   ranks={k:next((i for i,s in enumerate(ss,1) if match(s,e)),None) for k,ss in channels.items()}

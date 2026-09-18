@@ -40,7 +40,7 @@ try:
     t=time.perf_counter()
     r=rpc(name,'tools/call',{'name':'search_vault','arguments':{'query':q['query'],'top_k':15}},i)
     data=json.loads(r['content'][0]['text']);assert 'error' not in data,data
-    rank=next((j for j,row in enumerate(data['results'],1) if any(matches_expected(row['source'],e,'/home/dxwx/wiki') for e in q['expected'])),None)
+    rank=next((j for j,row in enumerate(data['results'],1) if any(matches_expected(row['source'],e,'../wiki') for e in q['expected'])),None)
     item={'id':q['id'],'arm':name,'rank':rank,'ms':round((time.perf_counter()-t)*1000,2),'response':data}
     rows.append(item);f.write(json.dumps(item)+'\n');f.flush()
  summary={}

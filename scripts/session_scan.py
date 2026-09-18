@@ -13,8 +13,8 @@ Usage:
     python3 session_scan.py --files <file1,file2,...> --topic <topic> [--type <type>]
 
 Paths are read from environment variables with sensible defaults:
-    VAULT_ROOT      — your Obsidian vault root            (default: /home/dxwx/wiki)
-    HERMES_SCRIPTS — dir holding the companion scripts    (default: /home/dxwx/.hermes/scripts)
+    VAULT_ROOT      — your Obsidian vault root            (default: ./vault)
+    HERMES_SCRIPTS — dir holding the companion scripts    (default: .)
 Override per environment, or edit the two constants below.
 """
 
@@ -26,8 +26,8 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-WIKI_ROOT = Path(os.getenv("VAULT_ROOT", "/home/dxwx/wiki"))
-SCRIPTS_DIR = Path(os.getenv("HERMES_SCRIPTS", "/home/dxwx/.hermes/scripts"))
+WIKI_ROOT = Path(os.getenv("VAULT_ROOT", "./vault"))
+SCRIPTS_DIR = Path(os.getenv("HERMES_SCRIPTS", "."))
 
 
 def run_script(script_name, args, timeout=120):

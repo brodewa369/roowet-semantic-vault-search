@@ -10,7 +10,7 @@ from pathlib import Path
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-LANCEDB_PATH = os.getenv("LANCEDB_PATH", "/home/dxwx/.hermes/vault_vectors")
+LANCEDB_PATH = os.getenv("LANCEDB_PATH", "./data/lancedb")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3")
 
@@ -191,7 +191,7 @@ def search_by_tag(tags: list, top_k: int = 10) -> list:
     from pathlib import Path
     import yaml
     
-    VAULT_ROOT = Path("/home/dxwx/wiki")
+    VAULT_ROOT = Path("../wiki")
     EXCLUDE_DIRS = {".obsidian", ".git", "__pycache__", "06-SYSTEM", "07-INDEX"}
     
     tags_lower = [t.lower() for t in tags]

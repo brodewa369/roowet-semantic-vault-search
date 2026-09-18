@@ -43,7 +43,7 @@ for q in capture['queries']:
     variants['content_coverage']=sorted(ranked,key=lambda row:-row['score']*(1+0.5*max((len(terms & h.base.tokens(text))/max(len(terms),1) for text in bysource.get(row['source'],[''])),default=0)))
     out={'id':q['id'],'type':q['type'],'query':q['query'],'identifiers':identifiers,'variants':{}}
     for name,rows in variants.items():
-        rank=next((i for i,row in enumerate(rows[:15],1) if any(matches_expected(row['source'],e,'/home/dxwx/wiki') for e in q['expected'])),None)
+        rank=next((i for i,row in enumerate(rows[:15],1) if any(matches_expected(row['source'],e,'../wiki') for e in q['expected'])),None)
         out['variants'][name]={'rank':rank,'top5':[r['source'] for r in rows[:5]]}
     results.append(out)
 for name in ('baseline','rrf_10','rrf_20','exact_identifier_priority','content_coverage'):
