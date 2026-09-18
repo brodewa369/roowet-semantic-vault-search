@@ -18,7 +18,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
 
-VAULT_ROOT = Path(os.getenv("VAULT_ROOT", "./vault"))
+VAULT_ROOT = Path(os.getenv("VAULT_ROOT", "/home/dxwx/wiki"))
 REPORT_DIR = VAULT_ROOT / "04-LOGS" / "weekly-note"
 SKIP_DIRS = {".obsidian", ".git", "__pycache__", "node_modules", ".trash", ".smart-env"}
 
@@ -215,7 +215,7 @@ def check_index_coverage():
     """Check LanceDB index coverage."""
     try:
         import lancedb
-        db = lancedb.connect(os.path.expanduser("./data/lancedb"))
+        db = lancedb.connect(os.path.expanduser("~/.hermes/vault_vectors"))
         table = db.open_table("vault_chunks")
         indexed = table.count_rows()
         

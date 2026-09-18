@@ -197,6 +197,8 @@ flowchart TD
 | `python eval/verify_release_wire.py mcp_server/server.py` | Full 50-query acceptance test |
 | `python eval/recall_context_wire.py mcp_server/entry.py` | Multi-file recall wire test |
 | `python eval/recall_coverage_tests.py` | Contract tests (9 tests) |
+| `python scripts/auto-tag.py <file> --apply` | Auto-tag a file based on content |
+| `python scripts/vault_tag_audit.py` | Tag quality audit (single-use, orphans, missing backlinks) |
 
 ## Vault Maintenance
 
@@ -336,8 +338,10 @@ roowet-semantic-vault-search/
 ├── vault_recall_context.py    # Multi-file recall with pagination
 ├── scripts/
 │   ├── session_scan.py        # Batched session → vault ingestion
+│   ├── auto-tag.py            # Auto-tag files based on content
 │   ├── vault_generate_index.py # Auto-generate index.md for folders
-│   └── vault_health_weekly.py # Comprehensive vault health check
+│   ├── vault_health_weekly.py # 9-point vault health check
+│   └── vault_tag_audit.py     # Tag quality audit + backlink check
 ├── eval/
 │   ├── verify_release_wire.py # Full 50-query acceptance test
 │   ├── recall_context_wire.py # Multi-file recall wire test
