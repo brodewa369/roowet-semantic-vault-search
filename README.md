@@ -278,10 +278,10 @@ recall("crypto bot ggscalping wallet tracking", char_budget=7000)
 
 | Metric | Original (21q) | Expanded (49q) |
 |--------|----------------|----------------|
-| Hit@1 | 0.905 | 0.735 |
-| Hit@3 | 0.952 | **0.898** |
-| Hit@5 | **1.000** | **0.898** |
-| MRR | 0.940 | 0.828 |
+| Hit@1 | 0.857 | 0.735 |
+| Hit@3 | 0.952 | **0.918** |
+| Hit@5 | **1.000** | **0.980** |
+| MRR | 0.909 | 0.828 |
 
 **Root cause fix:** 73% of vault files were not indexed (167→598 files, 899→4,886 chunks).
 
