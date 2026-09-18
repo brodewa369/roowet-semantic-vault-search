@@ -17,8 +17,8 @@
 Search your markdown vault by **meaning** (not keyword matching). Runs fully local — zero API costs, zero data leaves your machine.
 
 **Benchmark (2026-09-18):**
-- Original 21-query golden set: **Hit@5 = 1.000** ✅
-- Expanded 49-query set: **Hit@5 = 0.959** ✅ (target 95% met)
+- Original 21-query golden set: **Hit@5 = 1.000**
+- Expanded 49-query set: **Hit@5 = 0.898**
 - Full reindex: **598 files → 4,886 chunks** (from 167 files → 899 chunks)
 - Multi-file recall: **86 files / 3 pages** for broad queries
 
@@ -279,8 +279,8 @@ recall("crypto bot ggscalping wallet tracking", char_budget=7000)
 | Metric | Original (21q) | Expanded (49q) |
 |--------|----------------|----------------|
 | Hit@1 | 0.905 | 0.735 |
-| Hit@3 | 0.952 | **0.898** ✅ |
-| Hit@5 | **1.000** | **0.959** ✅ |
+| Hit@3 | 0.952 | **0.898** |
+| Hit@5 | **1.000** | **0.898** |
 | MRR | 0.940 | 0.828 |
 
 **Root cause fix:** 73% of vault files were not indexed (167→598 files, 899→4,886 chunks).
