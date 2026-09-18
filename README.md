@@ -198,6 +198,51 @@ flowchart TD
 | `python eval/recall_context_wire.py mcp_server/entry.py` | Multi-file recall wire test |
 | `python eval/recall_coverage_tests.py` | Contract tests (9 tests) |
 
+## Vault Maintenance
+
+### Weekly (Sunday)
+
+Generate folder index + health report:
+
+```bash
+# Update folder index.md files (auto-generate)
+python scripts/vault_generate_index.py
+
+# Run comprehensive vault health check (9 checks)
+python scripts/vault_health_weekly.py
+```
+
+**`vault_generate_index.py`** — Generate/update `index.md` files for all vault folders. Lists files with title, description, status. Skips folders with manual `index.md`.
+
+**`vault_health_weekly.py`** — Comprehensive health check:
+1. Orphan files (no inbound links)
+2. Broken wikilinks (unresolvable)
+3. Duplicate content (exact MD5)
+4. Merge candidates (similar names/content)
+5. Tag quality (missing, inconsistent)
+6. Index coverage (vault doctor)
+7. Stale files (not modified in 90 days)
+8. File size distribution
+9. Folder balance
+
+Output: detailed report in `04-LOGS/weekly-note/YYYY-MM-DD-vault-health.md`.
+
+### Monthly (Tanggal 1)
+
+Query log analysis:
+
+```bash
+python3 -c "
+from pathlib import Path
+log = Path.home() / '.hermes/vault_vectors/query_log.jsonl'
+if log.exists():
+    lines = log.read_text().strip().splitlines()
+    print(f'Total queries: {len(lines)}')
+"
+```
+
+Counts total queries logged in `~/.hermes/vault_vectors/query_log.jsonl`. Use to analyze usage patterns and identify popular search terms.
+
 ## MCP Tools
 
 | Tool | Description | When to use |
@@ -290,7 +335,9 @@ roowet-semantic-vault-search/
 ├── vault_release_handlers.py  # MCP handlers (recall, metadata tools)
 ├── vault_recall_context.py    # Multi-file recall with pagination
 ├── scripts/
-│   └── session_scan.py        # Batched session → vault ingestion
+│   ├── session_scan.py        # Batched session → vault ingestion
+│   ├── vault_generate_index.py # Auto-generate index.md for folders
+│   └── vault_health_weekly.py # Comprehensive vault health check
 ├── eval/
 │   ├── verify_release_wire.py # Full 50-query acceptance test
 │   ├── recall_context_wire.py # Multi-file recall wire test
