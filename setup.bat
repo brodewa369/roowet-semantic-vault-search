@@ -57,6 +57,8 @@ echo.
 echo  Next steps:
 echo  1. Edit .env - set VAULT_ROOT to your Obsidian vault path
 echo  2. Run: python indexer\vault_indexer.py --once
-echo  3. Add MCP config to Claude Desktop/Hermes (see README.md)
+echo  3. Run: python scripts\auto-tag.py [file] --apply (to auto-tag existing files)
+echo  4. Run: python scripts\vault_tag_audit.py (to check tag quality)
+echo  5. Add MCP config to Claude Desktop/Hermes (see README.md)
 echo ============================================
 pause

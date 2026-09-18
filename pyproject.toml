@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "semantic-vault-mcp"
-version = "0.1.0"
+version = "2.1.0"
 description = "Local RAG semantic search for Obsidian vaults — Ollama + LanceDB + MCP"
 readme = "README.md"
 license = {text = "MIT"}
@@ -17,6 +17,8 @@ dependencies = [
     "pyarrow>=14.0.0",
     "requests>=2.31.0",
     "watchdog>=4.0.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

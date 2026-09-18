@@ -9,11 +9,9 @@
 
 ---
 
-
-
 ## Identity
 
-[Ganti dengan deskripsi agent kamu — siapa, what they do, communication style]
+[Replace with your agent description — who, what they do, communication style]
 
 ## MANDATORY ON EVERY SESSION START
 
@@ -109,6 +107,39 @@ Stage 5: "Does this need detail from the vault?"
 5. **Never delete** without explicit user confirmation.
 6. **Daily note** required after every task.
 
+## Tag Selection Protocol (MANDATORY BEFORE WRITING)
+
+```
+1. search_vault([topic]) → find related notes
+2. Extract tags from related notes (REUSE, do not create new)
+3. Check existing MOCs for tag convention
+4. Use prefixed tags: [status/X], [type/X], [project/X]
+5. Max 5 tags: 1 topic + 1 status + 1 type + optional project
+6. If a tag is used only once → MERGE into existing tag
+```
+
+## Backlink Protocol (MANDATORY BEFORE WRITING)
+
+```
+1. search_vault([topic]) → find semantically related notes
+2. For each related note → add backlink to new note
+3. Update ## Related section existing notes with link to new file
+4. Link MUST be relevant — no random links just because "same tag"
+5. Target: min 1-2 backlinks per note, max 5
+```
+
+## Real-time Logging — HARD GATE
+
+**AGENT-INITIATED:** runs automatically EVERY task completion, without user request.
+
+After EVERY task complete (skip for small talk/greeting/cancelled task), BEFORE reporting "done" to user:
+
+1. **Check Pre-Response Vault Check table** — write file to appropriate folder (error-log, decisions, patterns, etc.)
+2. **Append entry to daily note** `04-LOGS/daily-note/YYYY-MM-DD.md`
+3. **Check and fill if relevant:** `decisions/`, `error-log/`, `patterns/`, `lessons-learned/`, `knowledge-gaps/`, `skill-usage/`, `02-KNOWLEDGE/entities|concepts|facts|resources/`, `01-AGENT-MEMORY/tools/`
+4. **ls destination folder** — verify file actually exists
+5. Failed write → tell user, never silently skip
+
 ## Related Notes
 
 - [[CLAUDE.md]] — Agent project guidance
@@ -116,3 +147,4 @@ Stage 5: "Does this need detail from the vault?"
 - [[vault-structure/06-SYSTEM/rules/naming-convention]] — File naming
 - [[vault-structure/06-SYSTEM/rules/routing-table]] — Where to write what
 - [[vault-structure/06-SYSTEM/templates/template-moc]] — MOC creation
+- [[vault-structure/06-SYSTEM/rules/agent-tagging-backlink-rules]] — Tag & backlink rules

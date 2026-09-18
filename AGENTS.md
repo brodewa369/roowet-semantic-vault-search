@@ -79,15 +79,44 @@ When the user changes topic mid-session:
 
 ---
 
-## Cron: Auto-Reindex
+## Vault Maintenance (Weekly/Monthly)
 
-```yaml
-# Reindex vault setiap 6 jam (incremental — hanya file berubah)
-name: vault-indexer
-schedule: every 6h
-script: python indexer/vault_indexer.py --once
-no_agent: true
+**Weekly (Sunday):**
+```bash
+# Update folder index.md files (auto-generate)
+python scripts/vault_generate_index.py
+
+# Run comprehensive vault health check (9 checks)
+python scripts/vault_health_weekly.py
+
+# Run tag audit (single-use tags, orphans, missing backlinks)
+python scripts/vault_tag_audit.py
 ```
+
+**Monthly (1st):**
+```bash
+# Query log analysis
+python3 -c "
+from pathlib import Path
+log = Path.home() / '.hermes/vault_vectors/query_log.jsonl'
+if log.exists():
+    lines = log.read_text().strip().splitlines()
+    print(f'Total queries: {len(lines)}')
+"
+```
+
+## Tag & Backlink Rules
+
+**Agent MUST follow these when writing to vault:**
+
+1. **Search before tag** — `search_vault([topic])` → extract tags from related notes → REUSE
+2. **Prefixed tags only** — `[status/active]` not `[active]`, `[type/error]` not `[error]`
+3. **Max 5 tags** — 1 topic + 1 status + 1 type + optional project
+4. **Single-use tags** — merge into existing tag if only used once
+5. **Backlinks mandatory** — `## Related` section with ≥1 relevant `[[wikilink]]`
+6. **Update existing notes** — when creating new note, add backlink to existing related notes
+
+**See detailed rules: `vault-structure/06-SYSTEM/rules/agent-tagging-backlink-rules.md`**
 
 ---
 
@@ -119,9 +148,12 @@ Local RAG system for markdown vaults (Obsidian/Foam/Dendron/plain md):
 
 | Tool | What it does | When to use |
 |------|-------------|-------------|
-| `search_vault(query, top_k=5)` | Semantic search by meaning | User asks about vault content |
+| `search_vault(query, top_k=15)` | Semantic search by meaning | Find content by concept |
+| `search_by_tag(tags, limit=20)` | Metadata filter by tags | Filter by specific tags |
+| `search_by_date(date, limit=20)` | Metadata filter by date | Find entries from specific dates |
+| `recall(topic, char_budget=7000, top_k=20)` | Multi-file context expansion | Broad topic needing many related files |
 | `read_vault_file(filepath)` | Read full markdown file | Need full context after search |
-| `vault_stats()` | Index statistics | Check chunks/files indexed |
+| `vault_stats()` | Index statistics | Check index health |
 | `get_chunk(source)` | All chunks for one file | Debug indexing |
 | `reindex_file(filepath)` | Re-index single file | After editing outside watcher |
 
