@@ -16,12 +16,6 @@
 
 Search your markdown vault by **meaning** (not keyword matching). Runs fully local — zero API costs, zero data leaves your machine.
 
-**Benchmark (2026-09-18):**
-- Original 21-query golden set: **Hit@5 = 1.000**
-- Expanded 49-query set: **Hit@5 = 0.898**
-- Full reindex: **598 files → 4,886 chunks** (from 167 files → 899 chunks)
-- Multi-file recall: **86 files / 3 pages** for broad queries
-
 ```
 User query → Ollama embed → LanceDB hybrid search (BM25 + vector RRF) → relevant chunks → LLM context
 ```
@@ -285,14 +279,14 @@ recall("crypto bot ggscalping wallet tracking", char_budget=7000)
 | Hit@5 | **1.000** | **0.980** |
 | MRR | 0.909 | 0.828 |
 
-**Root cause fix:** 73% of vault files were not indexed (167→598 files, 899→4,886 chunks).
+**Full reindex:** 598 files → 4,886 chunks (from 167 files → 899 chunks)
 
 **Fixes applied:**
 - Title boost (filename matching for query relevance)
 - Folder routing (location/status queries)
 - Post-fusion filter (lesson-learned queries)
-- Bilingual aliases (Indonesian-English matching)
-- Tag-specificity sorting (fewer tags = more specific)
+- Tag relevance sort (semantic similarity to tag)
+- Cross-folder merge (multi-term queries)
 
 ## Environment Variables
 
