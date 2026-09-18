@@ -227,7 +227,7 @@ python scripts/vault_health_weekly.py
 
 Output: detailed report in `04-LOGS/weekly-note/YYYY-MM-DD-vault-health.md`.
 
-### Monthly (Tanggal 1)
+### Monthly (1st of month)
 
 Query log analysis:
 
