@@ -15,6 +15,10 @@ Checks:
 
 import os, re, json, hashlib, yaml, difflib
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env")  # repo root (setup.sh)
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
 

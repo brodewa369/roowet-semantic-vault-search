@@ -4,6 +4,9 @@ Search, metadata and recall share one backend. No benchmark-specific routing.
 import re
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent / ".env")
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import vault_search_hardened as backend
 
