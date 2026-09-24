@@ -592,8 +592,54 @@ class VaultIndexer:
                 log.error(f"Index error {filepath}: {e}")
 
         log.info(f"Total chunks indexed: {total}")
+        self.dedup_and_prune()
         self._is_indexing = False
         return total
+
+    def dedup_and_prune(self) -> None:
+        """Cross-source chunk dedup + orphan-row prune.
+
+        Identical text from different files shares one content-hash chunk_id;
+        keeping a single row per id prevents RRF score inflation from shared
+        boilerplate (per-file dedup in index_file cannot see across files).
+        Rows whose source file no longer exists are dropped as well - they
+        survive _sync_deleted_files when the hash store no longer tracks them.
+        Keeper preference: source present in hash store and file exists.
+        """
+        try:
+            rows = self.table.to_arrow().to_pylist()
+            if not rows:
+                return
+            groups: dict[str, list] = {}
+            for r in rows:
+                groups.setdefault(r["chunk_id"], []).append(r)
+            dup_ids = [cid for cid, rs in groups.items() if len(rs) > 1]
+            orphan_srcs = sorted({r["source"] for r in rows if not Path(r["source"]).exists()})
+            keepers = []
+            for cid in dup_ids:
+                alive = [r for r in groups[cid] if Path(r["source"]).exists()]
+                if not alive:
+                    continue
+                keepers.append(
+                    next((r for r in alive if r["source"] in self.file_hashes), alive[0])
+                )
+            changed = False
+            if dup_ids:
+                ids = ",".join("'" + c.replace("'", "''") + "'" for c in dup_ids)
+                self.table.delete(f"chunk_id IN ({ids})")
+                if keepers:
+                    self.table.add(keepers)
+                changed = True
+                log.info(f"Dedup: collapsed {len(dup_ids)} chunk_ids -> kept {len(keepers)} rows")
+            if orphan_srcs:
+                for src in orphan_srcs:
+                    self.table.delete(f"source = '{src.replace(chr(39), chr(39) * 2)}'")
+                changed = True
+                log.info(f"Pruned orphan rows from {len(orphan_srcs)} deleted files")
+            if changed:
+                self._refresh_fts_if_stale()
+        except Exception as e:
+            log.warning(f"Dedup/prune failed (non-fatal): {e}")
 
     def search(self, query: str, top_k: int = 5) -> list[dict]:
         """Semantic search. Returns top K matching chunks."""

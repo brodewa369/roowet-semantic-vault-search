@@ -152,6 +152,23 @@ def search_vault(query,top_k=15,mode='broad',strict=False):
     if intent:
         if 'folder' in intent:
             return folder_page(intent['folder'],limit=limit)['results']
+        # Tag queries: sort by relevance to tag, not just date
+        if 'tags' in intent:
+            tag = intent['tags'].split(',')[0] if isinstance(intent['tags'], str) else intent['tags'][0]
+            page = metadata_page(tags=intent['tags'], limit=50)
+            
+            try:
+                tag_vec = embed(tag)
+                vec_results = table.search(tag_vec).limit(50).to_list()
+                vec_sources = {r['source']: -r.get('_distance', 0) for r in vec_results}
+                
+                for r in page['results']:
+                    r['score'] = vec_sources.get(r['source'], 0)
+                page['results'].sort(key=lambda x: -x['score'])
+            except:
+                pass
+            
+            return page['results'][:limit]
         return metadata_page(**intent,limit=limit)['results']
     import lancedb
     table=lancedb.connect(base._cfg()['db_path']).open_table('vault_chunks')
@@ -167,6 +184,36 @@ def search_vault(query,top_k=15,mode='broad',strict=False):
     
     ranks=[];degraded=[]
     channels=[('fts',.4,lambda:base.search_fts(table,rq)),('vector',.6,lambda:base.unique_rows(table.search(embed(query)).limit(200).to_list(),'_distance',True))]
+    
+    # Check for cross-folder/relationship queries
+    relationship_keywords = ['hubungan', 'relasi', 'between', 'sama', 'perbedaan', 'dan', 'and', 'with']
+    has_relationship = any(kw in query.lower() for kw in relationship_keywords)
+    
+    if has_relationship:
+        words = query.lower().split()
+        stop_words = {'the','a','an','is','are','was','were','be','been','have','has','had','do','does','did','will','would','could','should','may','might','must','shall','can','to','of','in','for','on','with','at','by','from','as','into','through','during','before','after','above','below','out','off','over','under','again','further','then','once','here','there','when','where','why','how','all','each','few','more','most','other','some','no','nor','not','only','own','same','so','than','too','very','just','don','now','and','or','but','if','while','because','although','though','until','unless','since','yet','both','either','neither','whether','however','therefore','thus','but','per','pro','re','via','vs'}
+        key_words = [w for w in words if w not in stop_words and len(w) > 3]
+        
+        if len(key_words) >= 2:
+            all_results = {}
+            for word in key_words[:4]:
+                try:
+                    vec_results = table.search(embed(word)).limit(15).to_list()
+                    for r in vec_results:
+                        src = str(Path(r['source']).resolve())
+                        if src not in all_results:
+                            all_results[src] = {'source': src, 'score': 0, 'merge_count': 0}
+                        all_results[src]['merge_count'] += 1
+                        all_results[src]['score'] = max(all_results[src]['score'], -r.get('_distance', 0))
+                except:
+                    pass
+            
+            if all_results:
+                merged = sorted(all_results.values(), key=lambda x: (-x['merge_count'], -x['score']))
+                for r in merged:
+                    r['text'] = r.get('text', '')[:800]
+                return merged[:limit]
+    
     root=base._cfg()['vault_root'].resolve()
     for name,weight,fn in channels:
         try:

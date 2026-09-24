@@ -13,12 +13,12 @@ Checks:
 9. Folder balance
 """
 
-import os, re, json, hashlib, yaml
+import os, re, json, hashlib, yaml, difflib
 from pathlib import Path
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
 
-VAULT_ROOT = Path(os.getenv("VAULT_ROOT", "/home/dxwx/wiki"))
+VAULT_ROOT = Path(os.getenv("VAULT_ROOT", "./vault"))
 REPORT_DIR = VAULT_ROOT / "04-LOGS" / "weekly-note"
 SKIP_DIRS = {".obsidian", ".git", "__pycache__", "node_modules", ".trash", ".smart-env"}
 
@@ -109,10 +109,21 @@ def check_orphans(files_dict):
 # ─── Check 2: Broken Links ────────────────────────────────────────────
 
 def check_broken_links(files_dict):
-    """Find wikilinks that don't resolve."""
+    """Find wikilinks that don't resolve.
+
+    Skips: links inside code fences/inline code (examples, not links),
+    and 06-SYSTEM/templates/ (placeholder links by design).
+    """
     broken = []
     paths = {rel: VAULT_ROOT / rel for rel in files_dict}
     for rel, content in files_dict.items():
+        if rel.startswith("06-SYSTEM/templates/"):
+            continue
+        # mask code so example links aren't counted
+        def _blank(m):
+            return re.sub(r"[^\n]", " ", m.group(0))
+        content = re.sub(r"```.*?```", _blank, content, flags=re.S)
+        content = re.sub(r"`[^`\n]+`", _blank, content)
         for m in re.finditer(r'\[\[([^\]]+)\]\]', content):
             link = m.group(1)
             target = resolve_link(link, paths)
@@ -146,6 +157,15 @@ def check_merge_candidates(files_dict):
     
     for stem, rels in by_stem.items():
         if len(rels) > 1 and stem not in ("index", "log", "overview", "readme"):
+            # Same stem alone is not enough: a tool reference and its decision
+            # record legitimately share a topic name (tools-routing pair is
+            # ~0.06 similar). Require real content overlap to flag a merge.
+            if len(rels) == 2:
+                ratio = difflib.SequenceMatcher(
+                    None, files_dict[rels[0]], files_dict[rels[1]]
+                ).ratio()
+                if ratio < 0.5:
+                    continue
             candidates.append({"type": "same_name", "files": rels})
     
     # Similar content (first 200 chars)
@@ -156,7 +176,13 @@ def check_merge_candidates(files_dict):
     
     for preview, rels in content_map.items():
         if len(rels) > 1 and len(preview) > 50:
-            candidates.append({"type": "similar_content", "files": rels})
+            # Merge candidates only apply to live files: archived snapshots
+            # intentionally mirror their predecessors (frozen history,
+            # cross-linked by design) - merging would destroy records.
+            live = [r for r in rels if not r.startswith("05-PROJECT/archive/")]
+            if len(live) < 2:
+                continue
+            candidates.append({"type": "similar_content", "files": live})
     
     return candidates
 
@@ -192,6 +218,9 @@ def check_tags(files_dict):
     normalized = {}
     for tag in tag_counts:
         base = tag.split("/")[-1]
+        if base == "research":
+            continue  # dual-use sanctioned by agent-tagging-backlink-rules L27:
+            # [research] = topic, [type/research] = research output
         if base in normalized and tag != normalized[base]:
             inconsistencies.append({
                 "tag1": normalized[base],
@@ -219,10 +248,9 @@ def check_index_coverage():
         table = db.open_table("vault_chunks")
         indexed = table.count_rows()
         
-        # Count unique sources
-        sources = set()
-        for row in table.search("", query_type="fts").limit(10000).to_list():
-            sources.add(row.get("source", ""))
+        # Count unique sources (scan rows directly - an empty FTS query
+        # returns nothing, which wrongly reported 0 sources before)
+        sources = set(table.to_arrow().column("source").to_pylist())
         
         return {
             "total_chunks": indexed,
@@ -340,7 +368,14 @@ def main():
     folder_report = check_folder_balance(files_dict)
     
     # Generate report
-    report = f"""# Vault Health Report — {datetime.now().strftime('%Y-%m-%d')}
+    report = f"""---
+type: report
+status: active
+date: {datetime.now().strftime('%Y-%m-%d')}
+tags: [vault, health, report, weekly]
+---
+
+# Vault Health Report — {datetime.now().strftime('%Y-%m-%d')}
 
 ## Summary
 

@@ -12,11 +12,17 @@ Usage:
 Output: JSON with suggested tags
 """
 
+import os
 import sys
 import re
 import json
 from pathlib import Path
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load .env: script dir (CLI convention) then repo root (setup.sh creates it there)
+load_dotenv(Path(__file__).parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 WIKI_ROOT = Path(os.getenv("VAULT_ROOT", "./vault"))
 
@@ -236,6 +242,10 @@ def extract_tags(content: str, file_path: str = "") -> dict:
             if t not in priority:
                 priority.append(t)
         tags = _rebuild_tags(priority)
+    else:
+        # Always rebuild: raw fm type/status values must be normalized to
+        # prefixed canonical forms (status/X, type/X) or plain tags return.
+        tags = _rebuild_tags(all_tags)
 
     return tags
 
@@ -243,22 +253,26 @@ def extract_tags(content: str, file_path: str = "") -> dict:
 def _rebuild_tags(tag_list):
     """Rebuild tag structure from flat list."""
     result = {"topic": [], "status": [], "type": [], "project": []}
-    status_tags = {"active", "complete", "archived", "waiting", "someday", "reference"}
+    status_tags = {"active", "complete", "archived", "waiting", "someday", "reference", "resolved"}
     type_tags = {
         "error", "mistake", "decision", "concept", "permanent",
         "analysis", "comparison", "raw", "synthesis", "pattern",
         "moc", "connection-report", "entity", "fact", "resource",
-        "tool", "prompt", "daily", "session", "trading", "project", "note", "log",
+        "tool", "prompt", "daily", "session", "project", "note", "log", "error-log",
     }
+    def _add(cat, val):
+        if val not in result[cat]:
+            result[cat].append(val)
+
     for tag in tag_list:
         if tag.startswith("status/") or tag in status_tags:
-            result["status"].append(tag if tag.startswith("status/") else f"status/{tag}")
+            _add("status", tag if tag.startswith("status/") else f"status/{tag}")
         elif tag.startswith("type/") or tag in type_tags:
-            result["type"].append(tag if tag.startswith("type/") else f"type/{tag}")
+            _add("type", tag if tag.startswith("type/") else f"type/{tag}")
         elif tag.startswith("project/"):
-            result["project"].append(tag)
+            _add("project", tag)
         else:
-            result["topic"].append(tag)
+            _add("topic", tag)
     return result
 
 
@@ -403,6 +417,10 @@ def main():
         sys.exit(1)
 
     file_path = sys.argv[1]
+    if not Path(file_path).is_absolute():
+        # Relative paths are relative to the wiki root (WIKI_ROOT);
+        # Path.relative_to() downstream crashes on mixed abs/rel args.
+        file_path = str(WIKI_ROOT / file_path)
     apply = "--apply" in sys.argv
     check = "--check" in sys.argv
 

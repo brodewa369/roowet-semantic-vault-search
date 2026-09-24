@@ -22,7 +22,7 @@ from pathlib import Path
 from collections import Counter, defaultdict
 from datetime import datetime
 
-VAULT_ROOT = Path(os.getenv("VAULT_ROOT", "/home/dxwx/wiki"))
+VAULT_ROOT = Path(os.getenv("VAULT_ROOT", "./vault"))
 REPORT_DIR = VAULT_ROOT / "04-LOGS" / "weekly-note"
 SKIP_DIRS = {".obsidian", ".git", "__pycache__", "node_modules", ".trash", ".smart-env"}
 
