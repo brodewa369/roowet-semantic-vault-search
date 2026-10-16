@@ -174,3 +174,11 @@ python indexer/vault_indexer.py --reindex    # full re-index (clear all)
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama endpoint |
 | `EMBED_MODEL` | `bge-m3` | Embedding model |
 | `EXCLUDE_DIRS` | `.obsidian,.trash,.git` | Folders to skip |
+
+---
+
+## Claim Update Gate — write-time dedup (2026-10-17)
+
+- **Stateful claim** (status project/config/tool/entity): `search_vault` first → owner file exists? UPDATE it (append `## History`), do NOT create a parallel file. Creating a second state file for an owned fact = violation.
+- **Incident/dated** (error/lesson/decision/daily): new dated file is fine, MUST backlink the owner it changes.
+- Full rule: SOUL.md → Claim Update Gate. Mechanical check: `python scripts/vault_write_lint.py [days]`.

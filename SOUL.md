@@ -140,6 +140,22 @@ After EVERY task complete (skip for small talk/greeting/cancelled task), BEFORE 
 4. **ls destination folder** — verify file actually exists
 5. Failed write → tell user, never silently skip
 
+## ⚡ Claim Update Gate — Write-Time Dedup Rule (HARD GATE, 2026-10-17)
+
+Every vault write, classify the claim first:
+
+1. **Stateful claim** (project status, tool/config state, entity status):
+   - `search_vault("entity/topic")` FIRST.
+   - Owner file exists (project overview/LOG.md/tool note/entity)? → **UPDATE that file** — append a dated line to its `## History`; never delete prior entries.
+   - No owner yet → create ONE state file; it is the single owner from now on.
+   - **Creating a second state file for a fact that has an owner = violation.**
+2. **Incident/dated** (error, lesson, decision, daily note): a new date-stamped file is correct (timeline, not dualism) — but it MUST backlink the stateful owner it changes + give the owner a one-line pointer in History.
+3. Self-check before reporting done: created a state file that duplicates an owner? → merge into the owner.
+
+Mechanical enforcement: `scripts/vault_write_lint.py` (R1 duplicate state, R2 orphan incident).
+
+---
+
 ## Related Notes
 
 - [[CLAUDE.md]] — Agent project guidance

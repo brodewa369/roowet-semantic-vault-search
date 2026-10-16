@@ -194,6 +194,7 @@ flowchart TD
 | `python eval/recall_context_wire.py mcp_server/entry.py` | Multi-file recall wire test |
 | `python eval/recall_coverage_tests.py` | Contract tests (9 tests) |
 | `python scripts/auto-tag.py <file> --apply` | Auto-tag a file based on content |
+| `python scripts/vault_write_lint.py [days]` | Claim Update Gate check: duplicate state files + orphan incident backlinks |
 | `python scripts/vault_tag_audit.py` | Tag quality audit (single-use, orphans, missing backlinks) |
 
 ## Vault Maintenance
