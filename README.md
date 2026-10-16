@@ -17,7 +17,7 @@
 Search your markdown vault by **meaning** (not keyword matching). Runs fully local — zero API costs, zero data leaves your machine.
 
 ```
-User query → Ollama embed → LanceDB hybrid search (BM25 + vector RRF) → relevant chunks → LLM context
+User query → Ollama embed → LanceDB dual-channel search (BM25 FTS 0.4 + vector cosine 0.6) → relevant chunks → LLM context
 ```
 
 ## Features
@@ -42,7 +42,7 @@ User query → Ollama embed → LanceDB hybrid search (BM25 + vector RRF) → re
 
 ```bash
 # Install
-pip install lancedb pyarrow watchdog requests
+pip install lancedb pyarrow watchdog requests python-dotenv pyyaml
 
 # Pull embedding model
 ollama pull bge-m3
@@ -67,12 +67,14 @@ semantic-vault:
   working_directory: /path/to/semantic-vault-mcp
 ```
 
+> **Robustness tip:** give `command` the absolute path of your venv's python (e.g. `command: /path/to/venv/bin/python`). A bare `python3` resolves per host PATH and can start a different interpreter that crashes on missing deps — the failure only shows up in logs, not in chat. After connecting, verify your client lists **11 tools**.
+
 ## Architecture
 
 ```mermaid
 graph TB
     subgraph Vault["Markdown Vault (VAULT_ROOT)"]
-        MD["598 files, 9 top-level folders"]
+        MD["Markdown vault (VAULT_ROOT, any size)"]
     end
 
     subgraph Indexer["vault_indexer.py"]
@@ -98,11 +100,11 @@ graph TB
         FOLDER["folder_page()"]
         META["metadata_page()"]
         LESSON["lessons-learned filter"]
-        HYBRID["Hybrid FTS+Vector RRF"]
+        HYBRID["Hybrid FTS 0.4 + Vector 0.6"]
     end
 
     subgraph MCP_Server["mcp_server/server.py"]
-        TOOLS["8 MCP tools"]
+        TOOLS["11 MCP tools"]
     end
 
     subgraph Client["MCP Client"]
@@ -162,7 +164,7 @@ flowchart TD
 
     Q1f --> Q2["embed_query POST api embeddings"]
     Q2 --> Q3["LanceDB FTS plus Vector search"]
-    Q3 --> Q4["RRF fusion plus title boost"]
+    Q3 --> Q4["Weighted fusion plus title boost"]
     Q4 -.-> S5c
 
     subgraph IDX["INDEX PIPELINE --once --watch"]
@@ -281,6 +283,8 @@ recall("crypto bot ggscalping wallet tracking", char_budget=7000)
 
 **Full reindex:** 598 files → 4,886 chunks (from 167 files → 899 chunks)
 
+**Note:** measured on this repo's expanded 49-question set with the Sep 2026 backend snapshot. Different vaults, query sets or code versions give different numbers — run the `eval/` scripts to reproduce on your data.
+
 **Fixes applied:**
 - Title boost (filename matching for query relevance)
 - Folder routing (location/status queries)
@@ -327,7 +331,7 @@ roowet-semantic-vault-search/
 │   ├── server.py              # MCP protocol + search logic
 │   └── entry.py               # Entry point
 ├── vault_search_hardened.py   # Hardened search (folder routing, lesson filter)
-├── vault_search_candidate.py  # Hybrid RRF fusion + title boost
+├── vault_search_candidate.py  # Weighted FTS+vector fusion + title boost
 ├── vault_release_handlers.py  # MCP handlers (recall, metadata tools)
 ├── vault_recall_context.py    # Multi-file recall with pagination
 ├── scripts/
