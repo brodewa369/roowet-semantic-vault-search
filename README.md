@@ -252,6 +252,7 @@ Counts total queries logged in `~/.hermes/vault_vectors/query_log.jsonl`. Use to
 | `recall(topic, char_budget=7000, top_k=20)` | Multi-file context expansion | Broad topic needing many related files |
 | `read_vault_file(filepath)` | Read full file content | Need full context after search |
 | `vault_stats()` | Index statistics | Check index health |
+| `vault_doctor()` | Index health: stale files, orphans, duplicate chunks, age | Debug retrieval quality dips |
 | `get_chunk(source)` | Get all chunks for one file | Debug indexing |
 | `reindex_file(filepath)` | Re-index single file | After editing outside watcher |
 
@@ -340,7 +341,8 @@ roowet-semantic-vault-search/
 │   ├── auto-tag.py            # Auto-tag files based on content
 │   ├── vault_generate_index.py # Auto-generate index.md for folders
 │   ├── vault_health_weekly.py # 9-point vault health check
-│   └── vault_tag_audit.py     # Tag quality audit + backlink check
+│   ├── vault_tag_audit.py     # Tag quality audit + backlink check
+│   └── vault_write_lint.py    # Claim Update Gate check: dup states + orphan incidents
 ├── eval/
 │   ├── verify_release_wire.py # Full 50-query acceptance test
 │   ├── recall_context_wire.py # Multi-file recall wire test
@@ -348,7 +350,9 @@ roowet-semantic-vault-search/
 │   ├── golden_queries.json    # 50-query golden set
 │   └── *.py                   # Other eval scripts
 ├── skills/
-│   └── scanthissession/       # Session scanner skill
+│   ├── scanthissession/       # Session scanner skill
+│   │   └── SKILL.md
+│   └── claim-update-gate/     # Write-time dedup rule skill
 │       └── SKILL.md
 ├── vault-structure/           # Example vault layout
 │   ├── README.md
@@ -454,6 +458,16 @@ The agent scans the session transcript, detects vault-relevant items (errors, de
 
 **When:** after a long session (>10 tool calls), before ending a session.
 **Output:** files written to `<VAULT_ROOT>/01-AGENT-MEMORY/...` + daily-note updated.
+
+### `/claim-update-gate` — Write-Time Dedup Rule
+
+Before writing any **stateful** fact (project status, config state, entity state), the agent searches for an existing owner file first — if one exists, it UPDATES that file (dated `## History` append) instead of creating a duplicate. Second state file for an owned fact = violation. Dated incidents (error/lesson/decision logs) stay as new files but must backlink the state owner.
+
+```text
+python scripts/vault_write_lint.py [days]   # mechanical check (R1/R2)
+```
+
+**Why:** retrieval ranks lexically — stale claims outrank current truth unless the write layer keeps a single owner per fact (see the staleness benchmark discussion in AGENTS.md → Known Issues #4).
 
 ## License
 

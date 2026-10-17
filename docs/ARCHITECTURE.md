@@ -225,6 +225,14 @@ Rather than loading everything upfront:
 2. **On-demand**: Semantic search for task-specific context
 3. **Safety net**: Search again if topic changes mid-session
 
+## Write-Time Consistency (Claim Update Gate)
+
+Retrieval quality depends not only on ranking but on what gets written. The bundled rule (SOUL.md → Claim Update Gate, skill `skills/claim-update-gate/`, lint `scripts/vault_write_lint.py`) keeps one owner file per stateful fact:
+
+- Stateful claim → search for the owner first; UPDATE the owner (dated `## History` append), never create a parallel state file.
+- Incident/dated claim → new date-stamped file, with a mandatory `[[backlink]]` to the state it changes.
+- `vault_write_lint.py` verifies mechanically: R1 = duplicate state detection via entity-token overlap against older evergreen owners; R2 = dated incidents with zero backlinks.
+
 ## Embedding Dimension Migration
 
 If switching models, re-index with `--reindex` flag:
